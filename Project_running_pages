@@ -1,0 +1,127 @@
+# Fursad Platform — Setup, Running Guide & Architecture
+
+This document outlines the system requirements, installation steps, execution guidelines, and architectural components of the Fursad Platform for developers and administrators.
+
+---
+
+## 1. Database Setup (MongoDB)
+
+Fursad utilizes **MongoDB** as its primary document database.
+
+- **Target Database**: `Fursad_Platform` (Note the casing: uppercase 'F' and 'P').
+- **Connection String**: `mongodb://localhost:27017/Fursad_Platform`
+- **Setup Action**: You **do not** need to manually create MongoDB collections. Mongoose will automatically initialize the collections, schemas, and indexing patterns when the backend server boots for the first time.
+- **Verification**: Ensure your MongoDB daemon (`mongod`) is running on port `27017` before booting the backend.
+
+---
+
+## 2. Installation & Modules
+
+The project is split into a NodeJS/Express backend and a React/Vite frontend. Dependencies must be installed in both workspaces.
+
+### A. Backend Installation
+Navigate to the backend directory and run install:
+```bash
+cd backend
+npm install
+```
+**Installed Core Packages**:
+- `express` (Application framework)
+- `mongoose` (Object Data Modeling)
+- `socket.io` (Real-time WebSockets connection)
+- `jsonwebtoken` & `bcryptjs` (User authentication and password encryption)
+- `@google/generative-ai` (Gemini API Integration)
+- `cors` & `dotenv` (Security and environment configuration)
+
+### B. Frontend Installation
+Navigate to the frontend directory and run install:
+```bash
+cd ../frontend
+npm install
+```
+**Installed Core Packages**:
+- `react` & `react-dom` (UI renderer)
+- `react-router-dom` (Routing and URL guards)
+- `axios` (HTTP client with JWT path-sensitive interceptors)
+- `socket.io-client` (Real-time WebSocket client)
+- `react-i18next` & `i18next` (Somali + English translation switcher)
+- `lucide-react` (SVG Icons pack)
+- `tailwindcss` (Styling utility)
+
+---
+
+## 3. How to Run the Project
+
+### Step 1: Environment Variables Setup
+Copy the `.env.example` configurations in both directories to create `.env` files:
+
+**Backend (`backend/.env`)**:
+```env
+PORT=5000
+NODE_ENV=development
+CLIENT_URL=http://localhost:5173
+MONGO_URI=mongodb://localhost:27017/Fursad_Platform
+JWT_SECRET=fursad_default_secure_secret_key_12345
+JWT_EXPIRES_IN=7d
+OTP_EXPIRES_MINUTES=10
+GEMINI_API_KEY=your_gemini_api_key_here
+ADMIN_SECRET=fursad_admin_portal_secret_token_98765
+```
+*(If `GEMINI_API_KEY` is left empty, the server automatically runs in **AI Mock Mode** with realistic fallbacks).*
+
+**Frontend (`frontend/.env`)**:
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
+```
+
+### Step 2: Start the Backend API Server
+In your backend terminal:
+```bash
+cd backend
+npm run dev
+```
+*(Server boots on `http://localhost:5000`)*
+
+### Step 3: Start the Frontend Client
+In your frontend terminal:
+```bash
+cd frontend
+npm run dev
+```
+*(Client app serves on `http://localhost:5173`)*
+
+---
+
+## 4. Architecture & Component Workflow
+
+```mermaid
+graph TD
+    A[Shared Constants] --> B[Backend Server]
+    A --> C[Frontend Client]
+    B -->|Mongoose ODM| D[MongoDB: Fursad_Platform]
+    B -->|Gemini SDK| E[Google Gemini API]
+    B -->|Real-time Socket.IO| C
+    B -->|Log Stubs| F[Email Service]
+```
+
+### A. Core Architecture Layers
+1. **Shared Variables (`shared/constants.js`)**:
+   Holds unified definition systems for roles (`jobseeker`, `employer`, `admin`), job statuses, application statuses, language codes (`en`, `so`), and matching weights.
+
+2. **Backend API Core (`backend/server.js`)**:
+   - **Mongoose Database Schemas**: Models represent accounts, profiles, companies, jobs, applications, chat messages, and admin audit logs.
+   - **Authentication and Session Managers**: Passport-style custom JWT authorization guards.
+   - **Gemini AI service (`aiService.js`)**: Runs content audits for jobs, parses plain text resumes, compiles candidates suitability summaries, and formats interview questions.
+   - **Matching Engine (`matchingService.js`)**: Sorts search results using weighted formulas:
+     * Skills Match: 45%
+     * Location Match: 20%
+     * Salary Overlap: 15%
+     * Education Level: 10%
+     * Experience Level: 10%
+
+3. **Frontend SPA client (`frontend/src/`)**:
+   - **Segregated Authentication Contexts**: Separate auth contexts (`JobseekerAuthContext`, `ProviderAuthContext`, `AdminAuthContext`) manage tokens stored under distinct localStorage keys (`fursad_jobseeker_token`, `fursad_provider_token`, `fursad_admin_token`) to prevent token collisions.
+   - **Axios Interceptor (`api.js`)**: Scans `window.location.pathname` to append the correct workspace JWT into HTTP headers.
+   - **Multi-portal Routers**: Restrict views via guards (`JobseekerRoute`, `ProviderRoute`, `AdminRoute`).
+   - **Real-Time Sockets chat**: Implemented natively inside the employer candidates management page, linking recruiters and applicants instantly.
