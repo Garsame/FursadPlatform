@@ -1,127 +1,196 @@
-# Fursad Platform — Setup, Running Guide & Architecture
+# Fursad Platform — Setup and Running Guide
 
-This document outlines the system requirements, installation steps, execution guidelines, and architectural components of the Fursad Platform for developers and administrators.
-
----
-
-## 1. Database Setup (MongoDB)
-
-Fursad utilizes **MongoDB** as its primary document database.
-
-- **Target Database**: `Fursad_Platform` (Note the casing: uppercase 'F' and 'P').
-- **Connection String**: `mongodb://localhost:27017/Fursad_Platform`
-- **Setup Action**: You **do not** need to manually create MongoDB collections. Mongoose will automatically initialize the collections, schemas, and indexing patterns when the backend server boots for the first time.
-- **Verification**: Ensure your MongoDB daemon (`mongod`) is running on port `27017` before booting the backend.
+How to get Fursad running on a clean machine, and what the pieces are.
+Accurate as of 22 August 2026.
 
 ---
 
-## 2. Installation & Modules
+## 1. Requirements
 
-The project is split into a NodeJS/Express backend and a React/Vite frontend. Dependencies must be installed in both workspaces.
+- **Node.js 18 or newer**
+- **MongoDB** running locally on port `27017`
+- A **Google Gemini API key** (optional — without it the AI runs in mock mode and nothing breaks)
+- **SMTP credentials** (optional — without them verification and reset codes are printed to the server console instead of being emailed)
 
-### A. Backend Installation
-Navigate to the backend directory and run install:
+The database is `Fursad_Platform` — note the capital F and P. You do not need to
+create any collections. Mongoose builds the schemas and indexes the first time
+the backend boots.
+
+---
+
+## 2. Install
+
+Two workspaces, installed separately.
+
 ```bash
-cd backend
-npm install
+npm --prefix fursad/backend install
+npm --prefix fursad/frontend install
 ```
-**Installed Core Packages**:
-- `express` (Application framework)
-- `mongoose` (Object Data Modeling)
-- `socket.io` (Real-time WebSockets connection)
-- `jsonwebtoken` & `bcryptjs` (User authentication and password encryption)
-- `@google/generative-ai` (Gemini API Integration)
-- `cors` & `dotenv` (Security and environment configuration)
-
-### B. Frontend Installation
-Navigate to the frontend directory and run install:
-```bash
-cd ../frontend
-npm install
-```
-**Installed Core Packages**:
-- `react` & `react-dom` (UI renderer)
-- `react-router-dom` (Routing and URL guards)
-- `axios` (HTTP client with JWT path-sensitive interceptors)
-- `socket.io-client` (Real-time WebSocket client)
-- `react-i18next` & `i18next` (Somali + English translation switcher)
-- `lucide-react` (SVG Icons pack)
-- `tailwindcss` (Styling utility)
 
 ---
 
-## 3. How to Run the Project
+## 3. Configure
 
-### Step 1: Environment Variables Setup
-Copy the `.env.example` configurations in both directories to create `.env` files:
+Copy the example file and fill it in:
 
-**Backend (`backend/.env`)**:
-```env
-PORT=5000
-NODE_ENV=development
-CLIENT_URL=http://localhost:5173
-MONGO_URI=mongodb://localhost:27017/Fursad_Platform
-JWT_SECRET=fursad_default_secure_secret_key_12345
-JWT_EXPIRES_IN=7d
-OTP_EXPIRES_MINUTES=10
-GEMINI_API_KEY=your_gemini_api_key_here
-ADMIN_SECRET=fursad_admin_portal_secret_token_98765
+```bash
+cp fursad/backend/.env.example fursad/backend/.env
 ```
-*(If `GEMINI_API_KEY` is left empty, the server automatically runs in **AI Mock Mode** with realistic fallbacks).*
 
-**Frontend (`frontend/.env`)**:
+### The two secrets are mandatory
+
+`JWT_SECRET` and `ADMIN_SECRET` have **no defaults**. The server reads them at
+boot and refuses to start if either is missing, shorter than 32 characters, or
+equal to a value that was once published in `.env.example`.
+
+That refusal is deliberate. `JWT_SECRET` signs every session token, so anyone
+who knows it can sign in as any account, including an administrator.
+`ADMIN_SECRET` is the only thing standing between a stranger and an admin
+account. A secret with a public default is not a secret.
+
+Generate each one:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+Changing `JWT_SECRET` later signs everybody out. Passwords are unaffected.
+
+### Frontend
+
+```bash
+cp fursad/frontend/.env.example fursad/frontend/.env
+```
+
 ```env
 VITE_API_URL=http://localhost:5000/api
 VITE_SOCKET_URL=http://localhost:5000
 ```
 
-### Step 2: Start the Backend API Server
-In your backend terminal:
-```bash
-cd backend
-npm run dev
-```
-*(Server boots on `http://localhost:5000`)*
+---
 
-### Step 3: Start the Frontend Client
-In your frontend terminal:
+## 4. Run
+
+Two terminals.
+
+**Backend** — boots on port 5000:
+
 ```bash
-cd frontend
-npm run dev
+npm --prefix fursad/backend run dev
 ```
-*(Client app serves on `http://localhost:5173`)*
+
+**Frontend** — must be on port **5174**:
+
+```bash
+npm --prefix fursad/frontend run dev -- --port 5174
+```
+
+### Why the port matters
+
+`CLIENT_URL` in `backend/.env` tells the server which origin to accept requests
+from, and it is set to `http://localhost:5174`. Vite's own default is 5173. On
+5173 the browser blocks every API call on CORS before it ever reaches the
+server, and the app looks up but does nothing — no jobs load, no sign-in works.
+
+If you would rather use 5173, change `CLIENT_URL` to match and restart the
+backend. The two just have to agree.
+
+**PowerShell** swallows the bare `--` separator. Quote it:
+
+```powershell
+npm --prefix fursad/frontend run dev '--' --port 5174
+```
+
+Nodemon watches `.js`, `.mjs` and `.json` only, so it will **not** notice a
+change to `.env`. After editing it, type `rs` in the nodemon terminal.
 
 ---
 
-## 4. Architecture & Component Workflow
+## 5. Test accounts
+
+Password for all seeded accounts: `Fursad@2026`
+
+| Role | Email | Notes |
+|---|---|---|
+| Admin | `admin@fursad.so` | |
+| Employer | `careers@hormuud.example.so` | Richest data — 3 jobs, 5 applicants |
+| Employer | `recruitment@dahabshiil.example.so` | |
+| Employer | `hr@premierbank.example.so` | |
+| Employer | `jobs@amalbank.example.so` | |
+| Job seeker | `ilyas.abdi@example.so` | Has a CV and applications |
+| Job seeker | `nasra.omar@example.so` | No CV — cannot apply until one is uploaded |
+
+The employer and admin portals are **not linked from the public site**. Reach
+them at `/provider/login` and `/admin/login` directly.
+
+The four employers are demonstration accounts with generated wordmarks and
+`.example.so` addresses. They are not real businesses and must be replaced
+before the platform is public.
+
+---
+
+## 6. Architecture
 
 ```mermaid
 graph TD
-    A[Shared Constants] --> B[Backend Server]
-    A --> C[Frontend Client]
-    B -->|Mongoose ODM| D[MongoDB: Fursad_Platform]
-    B -->|Gemini SDK| E[Google Gemini API]
-    B -->|Real-time Socket.IO| C
-    B -->|Log Stubs| F[Email Service]
+    A[shared/constants.js] --> B[Express API]
+    A --> C[React SPA]
+    B -->|Mongoose| D[(MongoDB<br/>Fursad_Platform)]
+    B -->|@google/generative-ai| E[Google Gemini]
+    B -->|Nodemailer / SMTP| F[Email]
+    B <-->|Socket.IO| C
+    B --> G[uploads/<br/>CVs and avatars]
 ```
 
-### A. Core Architecture Layers
-1. **Shared Variables (`shared/constants.js`)**:
-   Holds unified definition systems for roles (`jobseeker`, `employer`, `admin`), job statuses, application statuses, language codes (`en`, `so`), and matching weights.
+### Shared constants
 
-2. **Backend API Core (`backend/server.js`)**:
-   - **Mongoose Database Schemas**: Models represent accounts, profiles, companies, jobs, applications, chat messages, and admin audit logs.
-   - **Authentication and Session Managers**: Passport-style custom JWT authorization guards.
-   - **Gemini AI service (`aiService.js`)**: Runs content audits for jobs, parses plain text resumes, compiles candidates suitability summaries, and formats interview questions.
-   - **Matching Engine (`matchingService.js`)**: Sorts search results using weighted formulas:
-     * Skills Match: 45%
-     * Location Match: 20%
-     * Salary Overlap: 15%
-     * Education Level: 10%
-     * Experience Level: 10%
+`shared/constants.js` holds roles, job statuses, application statuses, language
+codes and the matching weights. Both the backend and the frontend import it, so
+neither side can drift from the other.
 
-3. **Frontend SPA client (`frontend/src/`)**:
-   - **Segregated Authentication Contexts**: Separate auth contexts (`JobseekerAuthContext`, `ProviderAuthContext`, `AdminAuthContext`) manage tokens stored under distinct localStorage keys (`fursad_jobseeker_token`, `fursad_provider_token`, `fursad_admin_token`) to prevent token collisions.
-   - **Axios Interceptor (`api.js`)**: Scans `window.location.pathname` to append the correct workspace JWT into HTTP headers.
-   - **Multi-portal Routers**: Restrict views via guards (`JobseekerRoute`, `ProviderRoute`, `AdminRoute`).
-   - **Real-Time Sockets chat**: Implemented natively inside the employer candidates management page, linking recruiters and applicants instantly.
+### Backend
+
+- **9 Mongoose models** — User, JobseekerProfile, CV, Company, Job, Application,
+  Message, AuditLog, SkillEmbedding
+- **49 endpoints** across 8 routers
+- **`aiService.js`** — ten Gemini functions, each with a realistic fallback so
+  that AI failure never blocks a user
+- **`matchingService.js`** — skills 45%, location 20%, salary 15%, education
+  10%, experience 10%. The AI extracts and judges; the scoring is deterministic
+  arithmetic, which is what makes it explainable
+- **`skillMatchService.js`** — semantic skill matching over cached embeddings,
+  so `"Node.js"`, `"NodeJS"` and `"Node"` are no longer three different skills
+- **`socketHandler.js`** — authenticated real-time chat, scoped per application
+
+### Frontend
+
+- **Three separate auth contexts**, one per portal, with tokens under distinct
+  localStorage keys (`fursad_jobseeker_token`, `fursad_provider_token`,
+  `fursad_admin_token`) so sessions never collide
+- **`services/api.js`** reads `window.location.pathname` and attaches the token
+  for whichever portal you are in
+- **Route guards** per portal: `JobseekerRoute`, `ProviderRoute`, `AdminRoute`
+- **One design system** in `tailwind.config.js` — deep green for structure,
+  bright green rationed for actions only, ochre for warmth
+
+---
+
+## 7. Things worth knowing
+
+**CVs are personal data.** `backend/uploads/` holds real CVs and profile
+photographs. It is git-ignored for that reason, and CVs are never served as
+static files — every download goes through an authorised route that checks the
+requester actually received that application.
+
+**Rate limits.** Sign-in allows 10 failed attempts per 15 minutes. Anything
+that sends an email allows 8 per 10 minutes (`RATE_LIMIT_EMAIL`). Behind a
+proxy the app must set `trust proxy`, or every visitor is counted as one.
+
+**A CV is required to apply.** An application with no document attached gives
+the employer nothing to read and scores the candidate off an empty profile.
+
+**Run the tests:**
+
+```bash
+npm --prefix fursad/backend test
+```
