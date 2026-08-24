@@ -149,6 +149,30 @@ const updateUser = async (req, res) => {
 
     if (isVerified !== undefined) user.isVerified = !!isVerified;
 
+    // Verifying by hand has to do everything normal verification does. The
+    // company and profile records are created at that moment, so an account
+    // waved through here without them lands on a dashboard that cannot load —
+    // an employer with no company cannot even see their own workspace.
+    if (isVerified === true) {
+      if (user.role === 'employer' && !(await Company.findOne({ owner: user._id }))) {
+        await Company.create({
+          name: `${user.name}'s Company`,
+          owner: user._id,
+          recruiters: [user._id],
+          contactEmail: user.email,
+          location: { city: user.city || '', country: user.country || '' }
+        });
+      }
+      if (user.role === 'jobseeker' && !(await JobseekerProfile.findOne({ user: user._id }))) {
+        await JobseekerProfile.create({
+          user: user._id,
+          headline: user.jobSpecification || '',
+          location: { city: user.city || '', country: user.country || '' },
+          highestEducationLevel: user.educationLevel || ''
+        });
+      }
+    }
+
     // Changing a role rewires which portal the account belongs to, so it is
     // handled explicitly rather than swept in with the plain fields.
     let roleNote = '';
