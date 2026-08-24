@@ -20,12 +20,15 @@ the backend boots.
 
 ## 2. Install
 
-Two workspaces, installed separately.
+All commands in this guide are run from the **repository root** — the `fursad`
+folder, the one containing `backend/`, `frontend/` and `shared/`.
 
 ```bash
-npm --prefix fursad/backend install
-npm --prefix fursad/frontend install
+npm run setup
 ```
+
+That installs both workspaces. (It is shorthand for installing in `backend/`
+and `frontend/` separately, which also still works.)
 
 ---
 
@@ -71,18 +74,23 @@ VITE_SOCKET_URL=http://localhost:5000
 
 ## 4. Run
 
-Two terminals.
-
-**Backend** — boots on port 5000:
+One command, from the repository root, starts both:
 
 ```bash
-npm --prefix fursad/backend run dev
+npm run dev
 ```
 
-**Frontend** — boots on port 5174:
+The API comes up on **5000** and the web app on **5174**. Open
+**http://localhost:5174**. Stop both with Ctrl+C.
+
+To run them in separate terminals instead:
 
 ```bash
-npm --prefix fursad/frontend run dev
+npm run dev:backend
+```
+
+```bash
+npm run dev:frontend
 ```
 
 ### About ports
@@ -102,10 +110,13 @@ response. The site loaded and then did nothing, with no error worth reading.
 
 ### Two things that catch people out
 
-**`--prefix` is relative to where you are.** Run the commands above from the
-project root (`Fursad Platform/`). From inside `fursad/frontend` the prefix
-resolves to `fursad/frontend/fursad/frontend` and npm reports a missing
-`package.json`. From inside a workspace folder, just use `npm run dev`.
+**Mind which folder you are in.** On a machine where this repository sits inside
+a folder with a similar name — `Fursad Platform/fursad/` — it is easy to run a
+command from the wrong one. `npm --prefix` is relative to the current
+directory, so standing one level off turns `fursad/frontend` into
+`fursad/fursad/frontend`, and npm reports a missing `package.json` as though
+the checkout were broken. Run everything from the repository root, where this
+guide lives, and use the `npm run` scripts above rather than paths.
 
 **Nodemon watches `.js`, `.mjs` and `.json` only** — it will not notice a change
 to `.env`. After editing it, type `rs` in the nodemon terminal.
