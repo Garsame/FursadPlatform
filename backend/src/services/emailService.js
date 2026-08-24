@@ -27,7 +27,19 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASSWORD) {
 
   transporter.verify()
     .then(() => console.log(`SMTP ready — sending as ${EMAIL_FROM}`))
-    .catch((err) => console.error('SMTP verification failed:', err.message));
+    .catch((err) => {
+      // Say what this means for the person running the app, not just that a
+      // check failed. Nothing is broken: verification and reset codes fall
+      // back to the console, so every flow can still be completed.
+      console.warn(`\n[EMAIL] SMTP login failed: ${err.message}`);
+      if (/BadCredentials|535/i.test(err.message)) {
+        console.warn('[EMAIL] Gmail rejected the username or app password. Generate a new');
+        console.warn('[EMAIL] app password at https://myaccount.google.com/apppasswords and');
+        console.warn('[EMAIL] set SMTP_PASSWORD in backend/.env (spaces are stripped for you).');
+      }
+      console.warn('[EMAIL] Until then, codes are printed here as [MAIL FALLBACK] — sign-up,');
+      console.warn('[EMAIL] verification and password reset all still work.\n');
+    });
 } else {
   console.log('SMTP not configured. Emails will be logged to the console.');
 }
