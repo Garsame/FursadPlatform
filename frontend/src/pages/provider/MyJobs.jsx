@@ -118,10 +118,12 @@ const MyJobs = () => {
               <div className="flex items-center gap-6 self-end md:self-center">
                 <div className="flex items-center gap-4">
                   <Badge variant={
-                    job.status === 'published' ? 'success' : 
-                    job.status === 'pending_review' ? 'warning' : 'neutral'
+                    job.status === 'published' ? 'success'
+                      : job.status === 'pending_review' ? 'warning'
+                      : job.status === 'flagged' ? 'danger' : 'neutral'
                   } className="capitalize px-3 py-1">
-                    {job.status === 'pending_review' ? 'Pending Review' : job.status}
+                    {job.status === 'pending_review' ? 'Awaiting approval'
+                      : job.status === 'flagged' ? 'Not approved' : job.status}
                   </Badge>
 
                   <div className="flex items-center gap-1.5 text-xs text-text-secondary bg-bg-elevated border border-border-subtle px-3 py-1.5 rounded-btn">
@@ -150,14 +152,15 @@ const MyJobs = () => {
                     </Button>
                   )}
 
-                  {job.status === 'closed' && (
+                  {(job.status === 'closed' || job.status === 'draft' || job.status === 'flagged') && (
                     <Button
                       variant="ghost"
                       className="h-9 text-xs"
                       disabled={statusBusy === job._id}
                       onClick={() => changeStatus(job._id, 'published')}
+                      title="An administrator reviews every job before it goes live"
                     >
-                      <RotateCcw size={13} /> {statusBusy === job._id ? 'Reopening...' : 'Reopen'}
+                      <RotateCcw size={13} /> {statusBusy === job._id ? 'Submitting...' : 'Submit for review'}
                     </Button>
                   )}
 

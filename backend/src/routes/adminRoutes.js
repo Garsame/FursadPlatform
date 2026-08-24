@@ -4,6 +4,8 @@ const {
   getAllUsers,
   updateUserStatus,
   getPendingJobs,
+  getAllJobs,
+  setJobStatus,
   reviewJob,
   getPlatformAnalytics,
   getAuditLogs
@@ -18,6 +20,8 @@ router.use(roleCheck(ROLES.ADMIN));
 router.get('/users', getAllUsers);
 router.put('/users/:id/status', updateUserStatus);
 router.get('/jobs/pending', getPendingJobs);
+router.get('/jobs', getAllJobs);
+router.put('/jobs/:id/status', setJobStatus);
 router.put('/jobs/:id/review', reviewJob);
 router.get('/analytics', getPlatformAnalytics);
 router.get('/audit-log', getAuditLogs);

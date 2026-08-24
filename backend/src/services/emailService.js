@@ -159,6 +159,62 @@ const sendInterviewPrepEmail = async (email, candidateName, jobTitle, questions 
       </div>`)
   });
 
+/**
+ * Tells an employer what an administrator decided about their vacancy.
+ * A moderation decision that arrives silently is indistinguishable from the
+ * platform being broken, so every one of these is announced.
+ */
+const JOB_DECISIONS = {
+  published: {
+    subject: (t) => `Your job is live — ${t}`,
+    heading: 'Your job has been approved',
+    lead: (t) => `Your vacancy <strong style="color:#0F1F1A">${t}</strong> has been reviewed and approved. It is now visible to candidates, and matching has started.`,
+    badge: { text: 'Published', bg: 'rgba(0,194,124,.12)', fg: '#0B5C43', br: 'rgba(0,194,124,.3)' },
+  },
+  pending_review: {
+    subject: (t) => `Your job has been withdrawn for review — ${t}`,
+    heading: 'Your job is being reviewed again',
+    lead: (t) => `Your vacancy <strong style="color:#0F1F1A">${t}</strong> has been taken off the public site and returned to review. It will not appear to candidates until it is approved again.`,
+    badge: { text: 'Pending review', bg: 'rgba(224,163,64,.16)', fg: '#8A5A0B', br: 'rgba(224,163,64,.35)' },
+  },
+  flagged: {
+    subject: (t) => `Your job was not approved — ${t}`,
+    heading: 'Your job was not approved',
+    lead: (t) => `Your vacancy <strong style="color:#0F1F1A">${t}</strong> was reviewed and has not been approved for publication. You can edit it and submit it again.`,
+    badge: { text: 'Not approved', bg: 'rgba(201,54,54,.10)', fg: '#C93636', br: 'rgba(201,54,54,.25)' },
+  },
+  closed: {
+    subject: (t) => `Your job has been closed — ${t}`,
+    heading: 'Your job has been closed',
+    lead: (t) => `Your vacancy <strong style="color:#0F1F1A">${t}</strong> has been closed and is no longer accepting applications. Applications already received are kept.`,
+    badge: { text: 'Closed', bg: '#F1F0EA', fg: '#4A5A52', br: '#CFCABC' },
+  },
+};
+
+const sendJobDecisionEmail = async (email, employerName, jobTitle, decision, note = '') => {
+  const d = JOB_DECISIONS[decision];
+  if (!d) return { sent: false, error: `unknown decision ${decision}` };
+
+  const plainNote = note ? `\n\nNote from the reviewer: ${note}` : '';
+
+  return deliver({
+    to: email,
+    subject: d.subject(jobTitle),
+    text: `Hello ${employerName},\n\n${d.heading}. ${jobTitle}.${plainNote}\n\nThe Fursad Team`,
+    html: shell(d.heading, `
+      <p style="margin:0 0 14px;color:#4A5A52;line-height:1.6">Hello ${employerName},</p>
+      <p style="margin:0 0 16px;color:#4A5A52;line-height:1.6">${d.lead(jobTitle)}</p>
+      <p style="margin:0 0 18px">
+        <span style="display:inline-block;background:${d.badge.bg};color:${d.badge.fg};
+          border:1px solid ${d.badge.br};border-radius:999px;padding:3px 12px;font-size:13px;
+          font-weight:700">${d.badge.text}</span>
+      </p>
+      ${note ? `<div style="background:#FAF9F6;border:1px solid #E7E4DB;border-radius:10px;padding:14px;
+        color:#4A5A52;line-height:1.6"><strong style="color:#0F1F1A;font-size:13px">Note from the reviewer</strong>
+        <p style="margin:6px 0 0;white-space:pre-line">${note}</p></div>` : ''}`)
+  });
+};
+
 /** Contact-form messages go to the platform inbox. */
 const sendContactMessage = async ({ name, email, subject, message }) =>
   deliver({
@@ -176,6 +232,7 @@ module.exports = {
   generateOTP,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendJobDecisionEmail,
   sendInterviewPrepEmail,
   sendStatusUpdateEmail,
   sendContactMessage,

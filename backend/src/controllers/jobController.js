@@ -96,7 +96,9 @@ const createJob = async (req, res) => {
     let suggestions = '';
 
     if (status === JOB_STATUS.PUBLISHED) {
-      // Run AI quality audit
+      // The AI audit still runs, but it no longer decides. Its score, flags and
+      // suggestions are stored so the administrator reviewing this job has
+      // something to judge by — it is a decision aid, not the decision.
       const auditResult = await aiService.reviewJobPost({
         title,
         description,
@@ -108,11 +110,9 @@ const createJob = async (req, res) => {
       qualityFlags = auditResult.flags || [];
       suggestions = (auditResult.suggestions || []).join('\n');
 
-      if (auditResult.requiresManualReview) {
-        jobStatus = JOB_STATUS.PENDING_REVIEW;
-      } else {
-        jobStatus = JOB_STATUS.PUBLISHED;
-      }
+      // An employer cannot publish their own vacancy. Every request to go live
+      // queues for administrator approval, first time and every time after.
+      jobStatus = JOB_STATUS.PENDING_REVIEW;
     }
 
     const job = await Job.create({
@@ -137,8 +137,8 @@ const createJob = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: jobStatus === JOB_STATUS.PENDING_REVIEW
-        ? 'Job created and flagged for manual admin review due to AI quality signals.'
-        : 'Job successfully created',
+        ? 'Job submitted for review. It will appear publicly once an administrator approves it.'
+        : 'Job saved as a draft.',
       data: job
     });
   } catch (error) {
@@ -186,8 +186,9 @@ const updateJob = async (req, res) => {
     if (employmentType !== undefined) job.employmentType = employmentType;
 
     if (status !== undefined) {
-      if (status === JOB_STATUS.PUBLISHED && job.status !== JOB_STATUS.PUBLISHED) {
-        // Run AI quality audit
+      if (status === JOB_STATUS.PUBLISHED) {
+        // Re-screen and queue. Employers may ask to go live; only an
+        // administrator decides that they do.
         const auditResult = await aiService.reviewJobPost({
           title: job.title,
           description: job.description,
@@ -198,25 +199,38 @@ const updateJob = async (req, res) => {
         job.aiQualityScore = auditResult.qualityScore;
         job.aiQualityFlags = auditResult.flags || [];
         job.aiSuggestions = (auditResult.suggestions || []).join('\n');
-
-        if (auditResult.requiresManualReview) {
-          job.status = JOB_STATUS.PENDING_REVIEW;
-        } else {
-          job.status = JOB_STATUS.PUBLISHED;
-          job.publishedAt = new Date();
-        }
-      } else {
+        job.status = JOB_STATUS.PENDING_REVIEW;
+      } else if (status === JOB_STATUS.CLOSED || status === JOB_STATUS.DRAFT) {
+        // Taking your own vacancy down is entirely the employer's call.
         job.status = status;
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'Only an administrator can set that status.'
+        });
       }
+    }
+
+    // Editing a live vacancy sends it back for review, because the copy an
+    // administrator approved is no longer the copy that would be published.
+    const contentEdited = [title, description, skillsRequired, location, salaryRange,
+      educationLevel, experienceLevel, employmentType].some((v) => v !== undefined);
+
+    if (contentEdited && status === undefined && job.status === JOB_STATUS.PUBLISHED) {
+      job.status = JOB_STATUS.PENDING_REVIEW;
     }
 
     await job.save();
 
+    const messages = {
+      [JOB_STATUS.PENDING_REVIEW]: 'Sent for review. It will go live once an administrator approves it.',
+      [JOB_STATUS.CLOSED]: 'Job closed. It is no longer visible to candidates.',
+      [JOB_STATUS.DRAFT]: 'Saved as a draft.'
+    };
+
     return res.status(200).json({
       success: true,
-      message: job.status === JOB_STATUS.PENDING_REVIEW
-        ? 'Job updated and flagged for admin review.'
-        : 'Job successfully updated',
+      message: messages[job.status] || 'Job successfully updated',
       data: job
     });
   } catch (error) {

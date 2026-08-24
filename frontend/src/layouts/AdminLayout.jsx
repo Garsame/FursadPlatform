@@ -25,10 +25,14 @@ const AdminLayout = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-bg-primary text-text-primary flex">
-      {/* Sidebar (240px) */}
-      <aside className="w-sidebar bg-bg-surface border-r border-border-subtle flex flex-col justify-between shrink-0">
-        <div>
+    // h-screen + overflow-hidden, so the page itself never scrolls. Only the
+    // nav list and the main column do. Previously this was min-h-screen, which
+    // let the whole document grow and carried the pinned account block and
+    // sign-out button off the bottom of the sidebar as the page scrolled.
+    <div className="h-screen bg-bg-primary text-text-primary flex overflow-hidden">
+      {/* Sidebar (240px) — full height, fixed */}
+      <aside className="w-sidebar bg-bg-surface border-r border-border-subtle flex flex-col shrink-0 h-screen">
+        <div className="shrink-0">
           {/* Logo Header */}
           <div className="h-navbar border-b border-border-subtle flex items-center px-6 gap-2">
             <Briefcase className="text-brand-green w-6 h-6" />
@@ -36,8 +40,10 @@ const AdminLayout = () => {
             <span className="text-[10px] bg-red-500/20 text-red-500 border border-red-500/35 px-1.5 py-0.5 rounded font-mono uppercase ml-1">Admin</span>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="p-4 flex flex-col gap-1">
+        </div>
+
+        {/* Only this list scrolls; the account block below stays put. */}
+        <nav className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-1">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
@@ -56,11 +62,10 @@ const AdminLayout = () => {
                 </Link>
               );
             })}
-          </nav>
-        </div>
+        </nav>
 
-        {/* Sidebar Footer Logout */}
-        <div className="p-4 border-t border-border-subtle">
+        {/* Pinned to the bottom of the sidebar, never scrolls away. */}
+        <div className="shrink-0 p-4 border-t border-border-subtle">
           <div className="mb-4 px-4 py-2 bg-bg-elevated rounded-card">
             <p className="text-xs text-text-muted">Logged in as Admin</p>
             <p className="text-sm font-semibold truncate text-text-primary">{user?.name || 'Administrator'}</p>
@@ -75,8 +80,8 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-grow flex flex-col min-w-0">
+      {/* Main Content Area — the only other region that scrolls */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen">
         {/* Topbar (64px) */}
         <header className="h-navbar bg-bg-surface border-b border-border-subtle px-8 flex items-center justify-between shrink-0">
           <h2 className="text-lg font-bold text-text-primary">
@@ -96,7 +101,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Dynamic Pages Container */}
-        <main className="flex-grow p-8 overflow-y-auto">
+        <main className="flex-1 min-h-0 overflow-y-auto p-8">
           <Outlet />
         </main>
       </div>

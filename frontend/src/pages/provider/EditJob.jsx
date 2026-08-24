@@ -246,14 +246,14 @@ const EditJob = () => {
           </Button>
         ) : (
           <Button variant="deep" onClick={() => save('published')} disabled={saving}>
-            Publish
+            Submit for review
           </Button>
         )}
 
-        <p className="text-xs text-text-muted">
+        <p className="text-xs text-text-muted max-w-md">
           {status === 'published'
-            ? 'Closing removes it from search. Existing applications are kept.'
-            : 'Publishing re-runs the automatic quality and fraud check.'}
+            ? 'Editing a live job sends it back for approval. Closing removes it from search, and applications already received are kept.'
+            : 'An administrator reviews every job before it goes live. You will be emailed as soon as a decision is made.'}
         </p>
       </div>
     </div>

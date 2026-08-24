@@ -2,7 +2,10 @@ const User = require('../models/User');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const AuditLog = require('../models/AuditLog');
-const { JOB_STATUS } = require('../../../shared/constants');
+const Company = require('../models/Company');
+const CV = require('../models/CV');
+const emailService = require('../services/emailService');
+const { JOB_STATUS, APPLICATION_STATUS } = require('../../../shared/constants');
 
 // @desc    List all platform users
 // @route   GET /api/admin/users
@@ -101,49 +104,139 @@ const getPendingJobs = async (req, res) => {
   }
 };
 
-// @desc    Approve or reject a job listing
-// @route   PUT /api/admin/jobs/:id/review
+// @desc    Every job on the platform, filterable
+// @route   GET /api/admin/jobs
 // @access  Private (Admin only)
-const reviewJob = async (req, res) => {
+const getAllJobs = async (req, res) => {
   try {
-    const { action, note } = req.body; // action: 'approve' or 'reject'
+    const { status, search } = req.query;
+    const query = {};
 
-    if (!action || !['approve', 'reject'].includes(action)) {
-      return res.status(400).json({ success: false, message: 'Action must be approve or reject' });
+    if (status && Object.values(JOB_STATUS).includes(status)) query.status = status;
+    if (search) {
+      query.$or = [
+        { title: new RegExp(search, 'i') },
+        { description: new RegExp(search, 'i') }
+      ];
     }
 
-    const job = await Job.findById(req.params.id);
-    if (!job) {
-      return res.status(404).json({ success: false, message: 'Job listing not found' });
-    }
+    const jobs = await Job.find(query)
+      .populate('company', 'name logoUrl location isVerified')
+      .populate('postedBy', 'name email')
+      .sort({ updatedAt: -1 });
 
-    const newStatus = action === 'approve' ? JOB_STATUS.PUBLISHED : JOB_STATUS.FLAGGED;
-    job.status = newStatus;
-    
-    if (newStatus === JOB_STATUS.PUBLISHED) {
-      job.publishedAt = new Date();
-    }
-    
-    await job.save();
+    // Applicant counts in one pass rather than a query per row.
+    const counts = await Application.aggregate([
+      { $match: { job: { $in: jobs.map((j) => j._id) } } },
+      { $group: { _id: '$job', n: { $sum: 1 } } }
+    ]);
+    const byJob = new Map(counts.map((c) => [String(c._id), c.n]));
 
-    // Log the audit event
-    await AuditLog.create({
-      actor: req.user._id,
-      action: action === 'approve' ? 'JOB_APPROVED' : 'JOB_REJECTED',
-      targetType: 'Job',
-      targetId: job._id,
-      details: `Admin ${req.user.name} reviewed job "${job.title}" with decision: ${action}. Reason/Note: ${note || 'N/A'}`
-    });
+    const withCounts = jobs.map((j) => ({ ...j.toObject(), applicantCount: byJob.get(String(j._id)) || 0 }));
 
     return res.status(200).json({
       success: true,
-      message: `Job listing successfully ${action === 'approve' ? 'approved and published' : 'rejected and flagged'}.`,
+      count: withCounts.length,
+      byStatus: Object.values(JOB_STATUS).reduce((acc, s) => {
+        acc[s] = withCounts.filter((j) => j.status === s).length;
+        return acc;
+      }, {}),
+      data: withCounts
+    });
+  } catch (error) {
+    console.error('Admin Get Jobs Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Set any job to any status.
+ *
+ * Publication is an administrator's decision, not an employer's. This is the
+ * only route that can set a job live, and it is also how a live job is pulled
+ * back: setting it to pending_review takes it off the public site and returns
+ * it to the employer's queue, where it stays until approved again.
+ *
+ * Every decision is audited and emailed. A moderation action the employer
+ * never hears about is indistinguishable from the platform malfunctioning.
+ */
+const ACTION_NAMES = {
+  [JOB_STATUS.PUBLISHED]: 'JOB_APPROVED',
+  [JOB_STATUS.PENDING_REVIEW]: 'JOB_WITHDRAWN_FOR_REVIEW',
+  [JOB_STATUS.FLAGGED]: 'JOB_REJECTED',
+  [JOB_STATUS.CLOSED]: 'JOB_CLOSED',
+  [JOB_STATUS.DRAFT]: 'JOB_RETURNED_TO_DRAFT'
+};
+
+// @desc    Change a job's status
+// @route   PUT /api/admin/jobs/:id/status
+// @access  Private (Admin only)
+const setJobStatus = async (req, res) => {
+  try {
+    const { status, note } = req.body;
+
+    if (!status || !Object.values(JOB_STATUS).includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${Object.values(JOB_STATUS).join(', ')}`
+      });
+    }
+
+    const job = await Job.findById(req.params.id)
+      .populate('company', 'name')
+      .populate('postedBy', 'name email');
+
+    if (!job) return res.status(404).json({ success: false, message: 'Job listing not found' });
+
+    const previous = job.status;
+    if (previous === status) {
+      return res.status(400).json({ success: false, message: `This job is already ${status}.` });
+    }
+
+    job.status = status;
+    if (status === JOB_STATUS.PUBLISHED) job.publishedAt = new Date();
+    await job.save();
+
+    await AuditLog.create({
+      actor: req.user._id,
+      action: ACTION_NAMES[status],
+      targetType: 'Job',
+      targetId: job._id,
+      details: `${req.user.name} changed "${job.title}" (${job.company?.name || 'unknown company'}) from ${previous} to ${status}.${note ? ` Note: ${note}` : ''}`
+    });
+
+    // Never let a mail failure roll back a moderation decision.
+    let emailed = false;
+    if (job.postedBy?.email) {
+      const result = await emailService.sendJobDecisionEmail(
+        job.postedBy.email, job.postedBy.name, job.title, status, note || ''
+      );
+      emailed = !!result?.sent;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Job set to ${status}.${emailed ? ' The employer has been emailed.' : ''}`,
+      emailed,
       data: job
     });
   } catch (error) {
-    console.error('Admin Review Job Error:', error.message);
+    console.error('Admin Set Job Status Error:', error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// @desc    Approve or reject a pending job (kept for the review queue)
+// @route   PUT /api/admin/jobs/:id/review
+// @access  Private (Admin only)
+const reviewJob = async (req, res) => {
+  const { action, note } = req.body;
+  if (!action || !['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ success: false, message: 'Action must be approve or reject' });
+  }
+  req.body.status = action === 'approve' ? JOB_STATUS.PUBLISHED : JOB_STATUS.FLAGGED;
+  req.body.note = note;
+  return setJobStatus(req, res);
 };
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -193,35 +286,123 @@ const monthlyCumulative = async (model, months = 6) => {
   return series;
 };
 
+/** Counts grouped by a field, returned as a plain object with zeros filled in. */
+const groupCount = async (model, field, keys, match = {}) => {
+  const rows = await model.aggregate([
+    ...(Object.keys(match).length ? [{ $match: match }] : []),
+    { $group: { _id: `$${field}`, n: { $sum: 1 } } }
+  ]);
+  const found = new Map(rows.map((r) => [r._id, r.n]));
+  return keys.reduce((acc, k) => { acc[k] = found.get(k) || 0; return acc; }, {});
+};
+
+const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
 // @desc    Get platform stats and metrics
 // @route   GET /api/admin/analytics
 // @access  Private (Admin only)
 const getPlatformAnalytics = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const totalJobs = await Job.countDocuments();
-    const pendingJobsCount = await Job.countDocuments({ status: JOB_STATUS.PENDING_REVIEW });
-    const activeApplications = await Application.countDocuments({
-      status: { $in: ['applied', 'reviewed', 'shortlisted', 'interview', 'offer'] }
-    });
+    const APP_STATUSES = Object.values(APPLICATION_STATUS);
+    const ACTIVE_APP = ['applied', 'reviewed', 'shortlisted', 'interview', 'offer'];
 
-    const jobseekersCount = await User.countDocuments({ role: 'jobseeker' });
-    const employersCount = await User.countDocuments({ role: 'employer' });
-    const suspendedUsersCount = await User.countDocuments({ isActive: false });
-
-    const [userGrowth, jobsGrowth, totalApplications, matchStats] = await Promise.all([
-      monthlyCumulative(User),
-      monthlyCumulative(Job),
+    const [
+      totalUsers, totalJobs, totalApplications, totalCompanies, totalCvs,
+      usersByRole, jobsByStatus, appsByStatus,
+      pendingJobsCount, activeApplications, suspendedUsersCount, unverifiedUsers,
+      newUsers7, newUsers30, newJobs7, newApps7,
+      matchStats, matchBuckets,
+      companyStats, cvParsed,
+      topCities, topEmployers, topSkills,
+      userGrowth, jobsGrowth, applicationsGrowth
+    ] = await Promise.all([
+      User.countDocuments(),
+      Job.countDocuments(),
       Application.countDocuments(),
-      // The mean match score actually recorded on applications. This replaced a
-      // hardcoded "94.2% platform match accuracy" on the analytics screen.
+      Company.countDocuments(),
+      CV.countDocuments(),
+
+      groupCount(User, 'role', ['jobseeker', 'employer', 'admin']),
+      groupCount(Job, 'status', Object.values(JOB_STATUS)),
+      groupCount(Application, 'status', APP_STATUSES),
+
+      Job.countDocuments({ status: JOB_STATUS.PENDING_REVIEW }),
+      Application.countDocuments({ status: { $in: ACTIVE_APP } }),
+      User.countDocuments({ isActive: false }),
+      User.countDocuments({ isVerified: false }),
+
+      User.countDocuments({ createdAt: { $gte: daysAgo(7) } }),
+      User.countDocuments({ createdAt: { $gte: daysAgo(30) } }),
+      Job.countDocuments({ createdAt: { $gte: daysAgo(7) } }),
+      Application.countDocuments({ createdAt: { $gte: daysAgo(7) } }),
+
       Application.aggregate([
         { $match: { matchScore: { $gt: 0 } } },
-        { $group: { _id: null, avg: { $avg: '$matchScore' }, n: { $sum: 1 } } }
-      ])
+        { $group: { _id: null, avg: { $avg: '$matchScore' }, min: { $min: '$matchScore' }, max: { $max: '$matchScore' }, n: { $sum: 1 } } }
+      ]),
+      // How well the engine is actually matching people, in bands.
+      Application.aggregate([
+        { $match: { matchScore: { $gt: 0 } } },
+        { $bucket: {
+          groupBy: '$matchScore', boundaries: [0, 40, 60, 75, 90, 101],
+          default: 'other', output: { n: { $sum: 1 } }
+        } }
+      ]),
+
+      Company.aggregate([
+        { $group: { _id: null, avgCompleteness: { $avg: '$profileCompleteness' }, verified: { $sum: { $cond: ['$isVerified', 1, 0] } } } }
+      ]),
+      CV.countDocuments({ parseStatus: 'parsed' }),
+
+      // Where the work actually is.
+      Job.aggregate([
+        { $match: { 'location.city': { $nin: [null, ''] } } },
+        { $group: { _id: '$location.city', jobs: { $sum: 1 } } },
+        { $sort: { jobs: -1 } }, { $limit: 6 }
+      ]),
+      // Which employers are drawing candidates.
+      Application.aggregate([
+        { $lookup: { from: 'jobs', localField: 'job', foreignField: '_id', as: 'j' } },
+        { $unwind: '$j' },
+        { $lookup: { from: 'companies', localField: 'j.company', foreignField: '_id', as: 'c' } },
+        { $unwind: '$c' },
+        { $group: { _id: '$c.name', applications: { $sum: 1 }, avgScore: { $avg: '$matchScore' } } },
+        { $sort: { applications: -1 } }, { $limit: 6 }
+      ]),
+      // What the market is asking for.
+      Job.aggregate([
+        { $match: { status: JOB_STATUS.PUBLISHED } },
+        { $unwind: '$skillsRequired' },
+        { $group: { _id: { $toLower: '$skillsRequired' }, demand: { $sum: 1 } } },
+        { $sort: { demand: -1 } }, { $limit: 10 }
+      ]),
+
+      monthlyCumulative(User),
+      monthlyCumulative(Job),
+      monthlyCumulative(Application)
     ]);
 
-    const avgMatchScore = matchStats.length ? Math.round(matchStats[0].avg * 10) / 10 : null;
+    const jobseekersCount = usersByRole.jobseeker;
+    const employersCount = usersByRole.employer;
+
+    // Hiring funnel: of everyone who applied, how far did they get?
+    const reached = (stages) => APP_STATUSES
+      .filter((s) => stages.includes(s))
+      .reduce((sum, s) => sum + appsByStatus[s], 0);
+
+    const funnel = [
+      { stage: 'Applied', count: totalApplications },
+      { stage: 'Reviewed', count: reached(['reviewed', 'shortlisted', 'interview', 'offer', 'hired']) },
+      { stage: 'Shortlisted', count: reached(['shortlisted', 'interview', 'offer', 'hired']) },
+      { stage: 'Interview', count: reached(['interview', 'offer', 'hired']) },
+      { stage: 'Offer', count: reached(['offer', 'hired']) },
+      { stage: 'Hired', count: appsByStatus.hired }
+    ];
+
+    const BUCKET_LABELS = { 0: 'Under 40%', 40: '40–59%', 60: '60–74%', 75: '75–89%', 90: '90%+' };
+
+    const m = matchStats[0];
+    const c = companyStats[0];
 
     return res.status(200).json({
       success: true,
@@ -229,21 +410,47 @@ const getPlatformAnalytics = async (req, res) => {
         summary: {
           totalUsers,
           totalJobs,
+          totalApplications,
+          totalCompanies,
+          totalCvs,
           pendingReviews: pendingJobsCount,
           activeApplications,
-          totalApplications,
           jobseekersCount,
           employersCount,
+          adminsCount: usersByRole.admin,
           suspendedUsersCount,
-          // null means "not enough data to say" — the UI must render that as
-          // such rather than inventing a number to fill the space.
-          avgMatchScore,
-          avgMatchSampleSize: matchStats.length ? matchStats[0].n : 0
+          unverifiedUsers,
+          newUsers7, newUsers30, newJobs7, newApps7,
+          livejobs: jobsByStatus[JOB_STATUS.PUBLISHED],
+          // null means "not enough data to say". The interface must render
+          // that as such rather than inventing a number to fill the space.
+          avgMatchScore: m ? Math.round(m.avg * 10) / 10 : null,
+          avgMatchSampleSize: m ? m.n : 0,
+          matchRange: m ? { min: m.min, max: m.max } : null,
+          applicationsPerJob: totalJobs ? Math.round((totalApplications / totalJobs) * 10) / 10 : 0,
+          hireRate: totalApplications
+            ? Math.round((appsByStatus.hired / totalApplications) * 1000) / 10
+            : 0,
+          cvParseRate: totalCvs ? Math.round((cvParsed / totalCvs) * 1000) / 10 : null,
+          avgCompanyCompleteness: c ? Math.round(c.avgCompleteness) : 0,
+          verifiedCompanies: c ? c.verified : 0
         },
-        charts: {
-          userGrowth,
-          jobsGrowth
-        }
+        breakdown: {
+          usersByRole,
+          jobsByStatus,
+          applicationsByStatus: appsByStatus
+        },
+        funnel,
+        matchDistribution: matchBuckets.map((b) => ({
+          band: BUCKET_LABELS[b._id] || String(b._id),
+          count: b.n
+        })),
+        topCities: topCities.map((r) => ({ city: r._id, jobs: r.jobs })),
+        topEmployers: topEmployers.map((r) => ({
+          name: r._id, applications: r.applications, avgScore: Math.round(r.avgScore || 0)
+        })),
+        topSkills: topSkills.map((r) => ({ skill: r._id, demand: r.demand })),
+        charts: { userGrowth, jobsGrowth, applicationsGrowth }
       }
     });
   } catch (error) {
@@ -273,6 +480,8 @@ module.exports = {
   getAllUsers,
   updateUserStatus,
   getPendingJobs,
+  getAllJobs,
+  setJobStatus,
   reviewJob,
   getPlatformAnalytics,
   getAuditLogs
