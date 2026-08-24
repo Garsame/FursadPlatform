@@ -5,6 +5,10 @@ const AuditLog = require('../models/AuditLog');
 const Company = require('../models/Company');
 const CV = require('../models/CV');
 const emailService = require('../services/emailService');
+const JobseekerProfile = require('../models/JobseekerProfile');
+const Message = require('../models/Message');
+const path = require('path');
+const { removeFile, UPLOAD_ROOT } = require('../services/documentService');
 const { JOB_STATUS, APPLICATION_STATUS } = require('../../../shared/constants');
 
 // @desc    List all platform users
@@ -55,8 +59,25 @@ const updateUserStatus = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    if (user.role === 'admin') {
-      return res.status(400).json({ success: false, message: 'Cannot change status of an Admin user' });
+    // Administrators are suspendable like anyone else — an account that has
+    // been compromised needs shutting off whatever role it holds. The two
+    // things that are refused are locking yourself out, and suspending the
+    // last working administrator, which would leave nobody able to undo it.
+    if (String(user._id) === String(req.user._id) && isActive === false) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot suspend the account you are signed in to.'
+      });
+    }
+
+    if (user.role === 'admin' && isActive === false) {
+      const activeAdmins = await User.countDocuments({ role: 'admin', isActive: true });
+      if (activeAdmins <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'This is the only active administrator. Promote or activate another before suspending this one.'
+        });
+      }
     }
 
     user.isActive = isActive;
@@ -83,6 +104,147 @@ const updateUserStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Admin Update User Status Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Permanently remove a user and everything that belonged to them.
+ *
+ * Suspending is reversible and is the right tool almost always; this is for
+ * the cases where a record must genuinely be gone. Because it cannot be
+ * undone, everything it will touch is counted and returned, and two things are
+ * refused outright: deleting yourself, and deleting the last administrator —
+ * either would lock the platform's owner out of their own moderation tools.
+ *
+ * Related records are removed rather than orphaned. A job whose employer no
+ * longer exists still appears in public search; an application pointing at a
+ * deleted candidate breaks the employer's applicant list.
+ */
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (String(user._id) === String(req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account while signed in to it.'
+      });
+    }
+
+    if (user.role === 'admin') {
+      const admins = await User.countDocuments({ role: 'admin' });
+      if (admins <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'This is the only administrator account. Create another administrator before deleting this one.'
+        });
+      }
+    }
+
+    const removed = { jobs: 0, applications: 0, messages: 0, cvs: 0, company: 0, profile: 0 };
+
+    if (user.role === 'jobseeker') {
+      const cvs = await CV.find({ user: user._id });
+      cvs.forEach((cv) => removeFile(path.join(UPLOAD_ROOT, 'cvs', cv.storedName)));
+      removed.cvs = (await CV.deleteMany({ user: user._id })).deletedCount;
+
+      const apps = await Application.find({ jobseeker: user._id }).select('_id');
+      removed.messages = (await Message.deleteMany({ application: { $in: apps.map((a) => a._id) } })).deletedCount;
+      removed.applications = (await Application.deleteMany({ jobseeker: user._id })).deletedCount;
+      removed.profile = (await JobseekerProfile.deleteMany({ user: user._id })).deletedCount;
+    }
+
+    if (user.role === 'employer') {
+      const jobs = await Job.find({ postedBy: user._id }).select('_id');
+      const jobIds = jobs.map((j) => j._id);
+
+      const apps = await Application.find({ job: { $in: jobIds } }).select('_id');
+      removed.messages = (await Message.deleteMany({ application: { $in: apps.map((a) => a._id) } })).deletedCount;
+      removed.applications = (await Application.deleteMany({ job: { $in: jobIds } })).deletedCount;
+      removed.jobs = (await Job.deleteMany({ postedBy: user._id })).deletedCount;
+
+      const company = await Company.findOne({ owner: user._id });
+      if (company?.logoUrl) removeFile(path.join(UPLOAD_ROOT, 'avatars', path.basename(company.logoUrl)));
+      removed.company = (await Company.deleteMany({ owner: user._id })).deletedCount;
+    }
+
+    // Any conversation they were part of, in either direction.
+    removed.messages += (await Message.deleteMany({
+      $or: [{ sender: user._id }, { recipient: user._id }]
+    })).deletedCount;
+
+    if (user.avatarUrl) {
+      removeFile(path.join(UPLOAD_ROOT, 'avatars', path.basename(user.avatarUrl)));
+    }
+
+    await user.deleteOne();
+
+    // The audit entry outlives the account deliberately: a deletion is exactly
+    // the kind of action that must stay on the record.
+    await AuditLog.create({
+      actor: req.user._id,
+      action: 'USER_DELETED',
+      targetType: 'User',
+      targetId: user._id,
+      details: `${req.user.name} permanently deleted ${user.role} ${user.email} (${user.name}). ` +
+        `Removed: ${removed.jobs} job(s), ${removed.applications} application(s), ${removed.cvs} CV(s), ` +
+        `${removed.messages} message(s), ${removed.company} company record(s).`
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `${user.name} was permanently deleted.`,
+      removed
+    });
+  } catch (error) {
+    console.error('Admin Delete User Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    What deleting this user would remove, without removing it
+// @route   GET /api/admin/users/:id/impact
+// @access  Private (Admin only)
+const getDeleteImpact = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const impact = { jobs: 0, applications: 0, cvs: 0, messages: 0, company: null };
+
+    if (user.role === 'jobseeker') {
+      impact.cvs = await CV.countDocuments({ user: user._id });
+      impact.applications = await Application.countDocuments({ jobseeker: user._id });
+    }
+    if (user.role === 'employer') {
+      const jobIds = (await Job.find({ postedBy: user._id }).select('_id')).map((j) => j._id);
+      impact.jobs = jobIds.length;
+      impact.applications = await Application.countDocuments({ job: { $in: jobIds } });
+      const c = await Company.findOne({ owner: user._id });
+      impact.company = c ? c.name : null;
+    }
+    impact.messages = await Message.countDocuments({
+      $or: [{ sender: user._id }, { recipient: user._id }]
+    });
+
+    const admins = user.role === 'admin' ? await User.countDocuments({ role: 'admin' }) : null;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        user: { _id: user._id, name: user.name, email: user.email, role: user.role },
+        impact,
+        blocked: String(user._id) === String(req.user._id)
+          ? 'This is the account you are signed in to.'
+          : (admins !== null && admins <= 1)
+            ? 'This is the only administrator account.'
+            : null
+      }
+    });
+  } catch (error) {
+    console.error('Admin Delete Impact Error:', error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -479,6 +641,8 @@ const getAuditLogs = async (req, res) => {
 module.exports = {
   getAllUsers,
   updateUserStatus,
+  deleteUser,
+  getDeleteImpact,
   getPendingJobs,
   getAllJobs,
   setJobStatus,
