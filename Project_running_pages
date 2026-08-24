@@ -79,30 +79,36 @@ Two terminals.
 npm --prefix fursad/backend run dev
 ```
 
-**Frontend** — must be on port **5174**:
+**Frontend** — boots on port 5174:
 
 ```bash
-npm --prefix fursad/frontend run dev -- --port 5174
+npm --prefix fursad/frontend run dev
 ```
 
-### Why the port matters
+### About ports
 
-`CLIENT_URL` in `backend/.env` tells the server which origin to accept requests
-from, and it is set to `http://localhost:5174`. Vite's own default is 5173. On
-5173 the browser blocks every API call on CORS before it ever reaches the
-server, and the app looks up but does nothing — no jobs load, no sign-in works.
+`vite.config.js` is set to port 5174 so it matches `CLIENT_URL` in
+`backend/.env`. No `--port` flag is needed. `strictPort` is on, so if 5174 is
+already taken Vite stops with an error rather than quietly moving to another
+port.
 
-If you would rather use 5173, change `CLIENT_URL` to match and restart the
-backend. The two just have to agree.
+In development the API accepts both 5173 and 5174, so a mismatch will not break
+anything. In production it accepts exactly what `CLIENT_URL` names. The backend
+prints its accepted origins at boot.
 
-**PowerShell** swallows the bare `--` separator. Quote it:
+This used to matter a great deal: when the two disagreed, requests still
+reached the server and showed up in its log, but the browser threw away every
+response. The site loaded and then did nothing, with no error worth reading.
 
-```powershell
-npm --prefix fursad/frontend run dev '--' --port 5174
-```
+### Two things that catch people out
 
-Nodemon watches `.js`, `.mjs` and `.json` only, so it will **not** notice a
-change to `.env`. After editing it, type `rs` in the nodemon terminal.
+**`--prefix` is relative to where you are.** Run the commands above from the
+project root (`Fursad Platform/`). From inside `fursad/frontend` the prefix
+resolves to `fursad/frontend/fursad/frontend` and npm reports a missing
+`package.json`. From inside a workspace folder, just use `npm run dev`.
+
+**Nodemon watches `.js`, `.mjs` and `.json` only** — it will not notice a change
+to `.env`. After editing it, type `rs` in the nodemon terminal.
 
 ---
 
