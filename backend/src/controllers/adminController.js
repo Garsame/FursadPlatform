@@ -109,6 +109,113 @@ const updateUserStatus = async (req, res) => {
 };
 
 /**
+ * Edit a user's own details on their behalf.
+ *
+ * Support work: correcting a misspelled name, fixing a typo in an address that
+ * is bouncing verification emails, marking someone verified who cannot receive
+ * mail. Passwords are deliberately not editable here — an administrator who can
+ * set a password can impersonate that person, and the self-service reset flow
+ * already exists for the legitimate case.
+ */
+const EDITABLE_FIELDS = [
+  'name', 'email', 'phone', 'gender', 'country', 'city',
+  'educationLevel', 'jobSpecification', 'preferredLanguage'
+];
+
+const updateUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const { email, role, isVerified } = req.body;
+
+    // An address is an identity here — it is the login and the route for every
+    // code the platform sends — so a collision has to be refused, not merged.
+    if (email && email.trim().toLowerCase() !== user.email) {
+      const normalised = email.trim().toLowerCase();
+      if (!/^\S+@\S+\.\S+$/.test(normalised)) {
+        return res.status(400).json({ success: false, message: 'That email address is not valid.' });
+      }
+      const taken = await User.findOne({ email: normalised, _id: { $ne: user._id } });
+      if (taken) {
+        return res.status(400).json({ success: false, message: 'Another account already uses that email address.' });
+      }
+      user.email = normalised;
+    }
+
+    EDITABLE_FIELDS.filter((f) => f !== 'email').forEach((f) => {
+      if (req.body[f] !== undefined) user[f] = req.body[f];
+    });
+
+    if (isVerified !== undefined) user.isVerified = !!isVerified;
+
+    // Changing a role rewires which portal the account belongs to, so it is
+    // handled explicitly rather than swept in with the plain fields.
+    let roleNote = '';
+    if (role && role !== user.role) {
+      if (!['jobseeker', 'employer', 'admin'].includes(role)) {
+        return res.status(400).json({ success: false, message: 'Invalid role.' });
+      }
+      if (String(user._id) === String(req.user._id)) {
+        return res.status(400).json({ success: false, message: 'You cannot change your own role.' });
+      }
+      if (user.role === 'admin') {
+        const admins = await User.countDocuments({ role: 'admin' });
+        if (admins <= 1) {
+          return res.status(400).json({
+            success: false,
+            message: 'This is the only administrator. Promote another account before changing this one.'
+          });
+        }
+      }
+
+      const previous = user.role;
+      user.role = role;
+
+      // Give the new role the record its portal depends on, so the account is
+      // not left in a state where its own dashboard cannot load.
+      if (role === 'employer' && !(await Company.findOne({ owner: user._id }))) {
+        await Company.create({ name: `${user.name}'s Company`, owner: user._id, recruiters: [user._id] });
+        roleNote = ' A blank company profile was created for them.';
+      }
+      if (role === 'jobseeker' && !(await JobseekerProfile.findOne({ user: user._id }))) {
+        await JobseekerProfile.create({
+          user: user._id,
+          location: { city: user.city || '', country: user.country || '' },
+          highestEducationLevel: user.educationLevel || ''
+        });
+        roleNote = ' A blank jobseeker profile was created for them.';
+      }
+      roleNote = ` Role changed from ${previous} to ${role}.${roleNote}`;
+    }
+
+    await user.save();
+
+    await AuditLog.create({
+      actor: req.user._id,
+      action: 'USER_EDITED',
+      targetType: 'User',
+      targetId: user._id,
+      details: `${req.user.name} edited ${user.email} (${user.name}).${roleNote}`
+    });
+
+    const clean = user.toObject();
+    delete clean.password;
+    delete clean.otpCode;
+    delete clean.resetOtpCode;
+
+    return res.status(200).json({
+      success: true,
+      message: `${user.name} updated.${roleNote}`,
+      data: clean
+    });
+  } catch (error) {
+    console.error('Admin Update User Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * Permanently remove a user and everything that belonged to them.
  *
  * Suspending is reversible and is the right tool almost always; this is for
@@ -641,6 +748,7 @@ const getAuditLogs = async (req, res) => {
 module.exports = {
   getAllUsers,
   updateUserStatus,
+  updateUser,
   deleteUser,
   getDeleteImpact,
   getPendingJobs,

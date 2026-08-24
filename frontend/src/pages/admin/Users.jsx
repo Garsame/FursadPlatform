@@ -5,7 +5,16 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { Search, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Search, Trash2, Pencil, AlertTriangle, Loader2, Save } from 'lucide-react';
+
+const BLANK_EDIT = {
+  name: '', email: '', phone: '', role: 'jobseeker', gender: '',
+  country: '', city: '', educationLevel: '', jobSpecification: '', isVerified: false,
+};
+
+const selectClass =
+  'w-full h-input px-4 bg-bg-primary border border-border-subtle rounded-input text-sm ' +
+  'text-text-primary focus:outline-none focus:border-brand-green focus:ring-4 focus:ring-brand-green/18';
 
 const Users = () => {
   const [users, setUsers] = useState([]);
@@ -18,6 +27,46 @@ const Users = () => {
   const [impact, setImpact] = useState(null);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  // Editing a user on their behalf — support work, not impersonation. There is
+  // deliberately no password field here.
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(BLANK_EDIT);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const openEdit = (user) => {
+    setEditing(user);
+    setEditError('');
+    setForm({
+      name: user.name || '', email: user.email || '', phone: user.phone || '',
+      role: user.role, gender: user.gender || '', country: user.country || '',
+      city: user.city || '', educationLevel: user.educationLevel || '',
+      jobSpecification: user.jobSpecification || '', isVerified: !!user.isVerified,
+    });
+  };
+
+  const setField = (k) => (e) =>
+    setForm((p) => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+
+  const saveEdit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return setEditError('A name is required.');
+    setSavingEdit(true);
+    setEditError('');
+    try {
+      const res = await api.put(`/admin/users/${editing._id}`, form);
+      if (res.data?.success) {
+        setUsers((prev) => prev.map((u) => (u._id === editing._id ? { ...u, ...res.data.data } : u)));
+        setNotice(res.data.message);
+        setEditing(null);
+      }
+    } catch (err) {
+      setEditError(err.response?.data?.message || 'Could not save those changes.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const openDelete = async (user) => {
     setTarget(user);
@@ -190,6 +239,15 @@ const Users = () => {
                           {u.isActive ? 'Suspend' : 'Reactivate'}
                         </Button>
                         <button
+                          onClick={() => openEdit(u)}
+                          title={`Edit ${u.name}`}
+                          aria-label={`Edit ${u.name}`}
+                          className="h-8 w-8 grid place-items-center rounded-btn text-brand-deep
+                            hover:bg-bg-elevated transition-colors"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
                           onClick={() => openDelete(u)}
                           title={`Permanently delete ${u.name}`}
                           aria-label={`Permanently delete ${u.name}`}
@@ -207,6 +265,100 @@ const Users = () => {
           </table>
         </div>
       </Card>
+
+      {/* Edit a user's details */}
+      <Modal
+        isOpen={!!editing}
+        onClose={() => !savingEdit && setEditing(null)}
+        title="Edit user"
+        subtitle={editing ? editing.email : ''}
+        size="lg"
+      >
+        {editing && (
+          <form onSubmit={saveEdit} className="flex flex-col gap-4">
+            {editError && (
+              <div className="flex items-start gap-2.5 bg-danger/8 border border-danger/25 rounded-input p-3">
+                <AlertTriangle size={15} className="text-danger shrink-0 mt-0.5" />
+                <p className="text-sm text-danger">{editError}</p>
+              </div>
+            )}
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input name="name" label="Full name" value={form.name} onChange={setField('name')} required />
+              <Input name="email" type="email" label="Email address" value={form.email} onChange={setField('email')}
+                     hint="This is their login and where every code is sent" required />
+              <Input name="phone" label="Phone" value={form.phone} onChange={setField('phone')} />
+              <Input name="city" label="City" value={form.city} onChange={setField('city')} />
+              <Input name="country" label="Country" value={form.country} onChange={setField('country')} />
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-text-primary">Gender</label>
+                <select value={form.gender} onChange={setField('gender')} className={selectClass}>
+                  <option value="">Not stated</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-text-primary">Education level</label>
+                <select value={form.educationLevel} onChange={setField('educationLevel')} className={selectClass}>
+                  <option value="">Not stated</option>
+                  {['High School', 'Diploma', 'Bachelor', 'Master', 'PhD'].map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-text-primary">Role</label>
+                <select value={form.role} onChange={setField('role')} className={selectClass}>
+                  <option value="jobseeker">Jobseeker</option>
+                  <option value="employer">Employer</option>
+                  <option value="admin">Admin</option>
+                </select>
+                {form.role !== editing.role && (
+                  <span className="text-xs text-accent-ochreInk">
+                    Changing the role moves them to a different portal. Any record the new role
+                    needs is created automatically.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <Input name="jobSpecification" label="What they do"
+                   hint="Their own words, used to seed matching"
+                   value={form.jobSpecification} onChange={setField('jobSpecification')} />
+
+            <label className="flex items-start gap-2.5 p-3 rounded-input border border-border-subtle cursor-pointer">
+              <input type="checkbox" checked={form.isVerified} onChange={setField('isVerified')}
+                     className="mt-0.5 accent-brand-green" />
+              <span>
+                <span className="block text-sm font-semibold text-text-primary">Email verified</span>
+                <span className="block text-xs text-text-muted">
+                  Tick this to let someone in who cannot receive our emails. It skips the code entirely.
+                </span>
+              </span>
+            </label>
+
+            <p className="text-xs text-text-muted">
+              Passwords cannot be set here. If they are locked out, send them to
+              <span className="font-mono"> /forgot-password</span> instead.
+            </p>
+
+            <div className="flex gap-3">
+              <Button variant="secondary" fullWidth type="button" disabled={savingEdit}
+                      onClick={() => setEditing(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" fullWidth type="submit" disabled={savingEdit}>
+                <Save size={16} /> {savingEdit ? 'Saving...' : 'Save changes'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* Permanent deletion */}
       <Modal

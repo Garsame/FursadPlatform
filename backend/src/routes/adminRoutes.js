@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getAllUsers,
   updateUserStatus,
+  updateUser,
   deleteUser,
   getDeleteImpact,
   getPendingJobs,
@@ -21,6 +22,7 @@ router.use(roleCheck(ROLES.ADMIN));
 
 router.get('/users', getAllUsers);
 router.put('/users/:id/status', updateUserStatus);
+router.put('/users/:id', updateUser);
 router.get('/users/:id/impact', getDeleteImpact);
 router.delete('/users/:id', deleteUser);
 router.get('/jobs/pending', getPendingJobs);

@@ -102,6 +102,38 @@ const COMPLETENESS_FIELDS = [
   { weight: 5,  has: (c) => (c.benefits || []).length > 0 }
 ];
 
+/**
+ * The minimum a candidate needs in order to decide whether to trust this
+ * employer with their CV: who they are, what they do, where they are, and how
+ * to reach them. A vacancy posted by a company with none of this gives the
+ * jobseeker nothing to read, which is why posting is gated on it.
+ *
+ * Deliberately a named list rather than a percentage. "Your profile is 43%
+ * complete" tells an employer nothing about what to type next.
+ */
+const ESSENTIALS = [
+  {
+    key: 'name',
+    label: 'Company name',
+    hint: 'Your real trading name, not the placeholder we generated',
+    // The auto-generated "Someone's Company" is a placeholder, not a name.
+    ok: (c) => !!c.name && !/'s Company$/.test(c.name)
+  },
+  { key: 'industry', label: 'Industry', hint: 'e.g. Banking, Telecommunications, Logistics', ok: (c) => !!c.industry },
+  { key: 'description', label: 'Short description', hint: 'At least a sentence on what the company does', ok: (c) => (c.description || '').trim().length >= 40 },
+  { key: 'city', label: 'City', hint: 'Where the company is based', ok: (c) => !!c.location?.city },
+  { key: 'contactEmail', label: 'Contact email', hint: 'How a candidate can reach you', ok: (c) => /^\S+@\S+\.\S+$/.test(c.contactEmail || '') }
+];
+
+/** Returns [] when the company may post jobs, or the missing essentials. */
+companySchema.methods.missingEssentials = function () {
+  return ESSENTIALS.filter((f) => !f.ok(this)).map(({ key, label, hint }) => ({ key, label, hint }));
+};
+
+companySchema.methods.canPostJobs = function () {
+  return this.missingEssentials().length === 0;
+};
+
 companySchema.methods.recalculateCompleteness = function () {
   const score = COMPLETENESS_FIELDS.reduce((sum, f) => sum + (f.has(this) ? f.weight : 0), 0);
   this.profileCompleteness = Math.min(100, score);

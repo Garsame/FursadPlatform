@@ -471,24 +471,65 @@ const generateCompanyProfile = async (facts) => {
   if (!model) return fallback;
 
   try {
-    const prompt = `
-      Write the public profile for an employer on a Somali job platform.
-      Be factual and grounded; do not invent awards, revenue figures or client names.
+    // The strongest evidence of what a company actually does is what it hires
+    // for. A firm advertising "Mobile Money Backend Developer" and "Network
+    // Operations Engineer" is describable from those two facts alone, even if
+    // the employer has typed almost nothing about themselves.
+    const roleEvidence = (facts.jobTitles || []).length
+      ? `Roles they are currently hiring for: ${facts.jobTitles.join('; ')}
+         Skills those roles ask for: ${(facts.jobSkills || []).slice(0, 15).join(', ') || 'none listed'}`
+      : 'They have not posted any vacancies yet.';
 
-      Company: ${facts.name}
-      Industry: ${facts.industry || 'unspecified'}
+    const existing = [
+      facts.tagline && `Existing tagline: ${facts.tagline}`,
+      facts.description && `Existing description: ${facts.description}`,
+      facts.about && `Existing about text: ${facts.about}`,
+      facts.benefits?.length && `Benefits already listed: ${facts.benefits.join(', ')}`,
+      facts.values?.length && `Values already listed: ${facts.values.join(', ')}`,
+      facts.website && `Website: ${facts.website}`
+    ].filter(Boolean).join('\n      ') || 'Nothing written yet.';
+
+    const prompt = `
+      You are writing the public profile of an employer on Fursad, a job
+      platform for Somalia and East Africa. A jobseeker reads this to decide
+      whether to trust this company with their CV.
+
+      RULES
+      - Ground every sentence in the facts below. Do not invent awards, client
+        names, revenue, headcount, offices or history that is not given.
+      - Where a fact is missing, write around it rather than guessing. Never
+        write "unspecified" or leave a placeholder in the output.
+      - Infer sensibly from the roles they hire for: those reveal what the
+        company does, how technical it is, and who would fit there.
+      - Plain, concrete language. No marketing superlatives — no "leading",
+        "world-class", "cutting-edge", "passionate about excellence".
+      - Somali context: salaries in USD, a workforce that is young and often
+        self-taught, and employers who compete on trust rather than brand.
+      - Write for a reader who has never heard of this company.
+
+      WHAT WE KNOW
+      Company name: ${facts.name}
+      Industry: ${facts.industry || 'not stated — infer it from the roles below'}
       Location: ${[facts.city, facts.country].filter(Boolean).join(', ') || 'Somalia'}
-      Founded: ${facts.foundedYear || 'unspecified'}
-      Size: ${facts.companySize || 'unspecified'}
-      Extra notes from the employer: ${facts.notes || 'none'}
+      Founded: ${facts.foundedYear || 'not stated'}
+      Size: ${facts.companySize || 'not stated'}
+
+      ${roleEvidence}
+
+      ALREADY ON THE PROFILE (improve on it; do not contradict it)
+      ${existing}
+
+      IN THE EMPLOYER'S OWN WORDS
+      ${facts.notes || 'They have not added notes.'}
 
       Respond ONLY with valid JSON:
       {
-        "tagline": "one short line, under 90 characters",
-        "description": "2-3 sentences a candidate reads on the job card",
-        "about": "a fuller 2-paragraph description of the company and what it is like to work there",
-        "benefits": ["4-6 realistic employee benefits"],
-        "values": ["3-5 company values"]
+        "tagline": "under 90 characters, says what they do, not how great they are",
+        "description": "2-3 sentences shown on the job card and employer wall",
+        "about": "two paragraphs: what the company does and who it serves, then what working there is actually like",
+        "benefits": ["4-6 benefits that are plausible for a company of this size and sector in Somalia"],
+        "values": ["3-5 values, phrased as how they behave rather than abstract nouns"],
+        "reasoning": "one sentence naming which facts you built this from"
       }
     `;
     const result = await model.generateContent(prompt);

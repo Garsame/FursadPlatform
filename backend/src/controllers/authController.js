@@ -34,7 +34,11 @@ const ensureRoleRecords = async (user) => {
       await Company.create({
         name: `${user.name}'s Company`,
         owner: user._id,
-        recruiters: [user._id]
+        recruiters: [user._id],
+        // Seeded from the account address so a new employer is not blocked
+        // from posting over a field they would only ever fill with this.
+        contactEmail: user.email,
+        location: { city: user.city || '', country: user.country || '' }
       });
     }
   }

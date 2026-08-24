@@ -90,6 +90,19 @@ const createJob = async (req, res) => {
       });
     }
 
+    // A vacancy is only half of what a candidate reads. If the employer behind
+    // it is a blank profile, there is nothing to decide against — so the
+    // company has to say who it is before it can ask anyone to apply.
+    const missing = company.missingEssentials();
+    if (missing.length) {
+      return res.status(403).json({
+        success: false,
+        needsCompanyProfile: true,
+        missing,
+        message: `Complete your company profile before posting a job. Still needed: ${missing.map((m) => m.label).join(', ')}.`
+      });
+    }
+
     let jobStatus = JOB_STATUS.DRAFT;
     let qualityFlags = [];
     let qualityScore = 100;

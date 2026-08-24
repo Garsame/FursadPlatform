@@ -25,6 +25,7 @@ import SignIn from './pages/public/SignIn';
 import SignUp from './pages/public/SignUp';
 import Verify from './pages/public/Verify';
 import ForgotPassword from './pages/public/ForgotPassword';
+import ScrollToTop from './components/ScrollToTop';
 import PublicJobs from './pages/public/Jobs';
 import PublicJobDetail from './pages/public/JobDetail';
 import PublicCompanyProfile from './pages/public/CompanyProfile';
@@ -63,6 +64,8 @@ import './i18n/i18n';
 function App() {
   return (
     <Router>
+      {/* Every navigation starts at the top of the new page. */}
+      <ScrollToTop />
       <JobseekerAuthProvider>
         <ProviderAuthProvider>
           <AdminAuthProvider>

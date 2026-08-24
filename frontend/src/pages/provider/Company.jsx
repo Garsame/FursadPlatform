@@ -91,9 +91,7 @@ const Company = () => {
   const pct = c.profileCompleteness || 0;
 
   return (
-    // px-6/-mx-6 pair with the sticky bar below so it spans the full width of
-    // the column rather than leaving the card corners poking out at its edges.
-    <div className="max-w-3xl px-6 -mx-6">
+    <div className="max-w-3xl">
       <header className="mb-6">
         <h1 className="font-display text-3xl font-semibold text-text-primary">Company profile</h1>
         <p className="text-text-secondary mt-2 max-w-prose">
@@ -214,19 +212,23 @@ const Company = () => {
           </div>
         </Section>
 
-        {/* Stays in reach on a long form. The background must be fully opaque:
-            at 90% the card scrolling underneath showed through the bar and its
-            edge cut across the button. A hairline separates it from the content
-            it is covering, and the form below carries enough bottom padding for
-            the last card to clear it. */}
-        <div className="sticky bottom-0 -mx-6 px-6 pt-4 pb-5 bg-bg-primary border-t border-border-subtle
-          flex flex-wrap items-center gap-4">
+        {/* Sits at the end of the form, in the normal flow. It used to be
+            sticky, which left it hovering over whatever card happened to be
+            scrolling underneath — it read as detached from the form it belongs
+            to, and the card edge cut across it. */}
+        <div className="bg-bg-surface border border-border-subtle rounded-card shadow-card p-6
+          flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-text-primary">
+              Profile {c.profileCompleteness ?? 0}% complete
+            </p>
+            <p className="text-xs text-text-muted mt-0.5">
+              Candidates read this before they apply, and you need the essentials filled in to post a job.
+            </p>
+          </div>
           <Button type="submit" variant="primary" size="lg" disabled={saving}>
             <Save size={17} /> {saving ? 'Saving…' : 'Save profile'}
           </Button>
-          <span className="text-xs text-text-muted">
-            {c.profileCompleteness ?? 0}% complete — candidates see this before they apply.
-          </span>
         </div>
       </form>
     </div>

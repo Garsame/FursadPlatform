@@ -98,6 +98,13 @@ const generateCompanyCopy = async (req, res) => {
     const company = await Company.findOne({ owner: req.user._id });
     if (!company) return res.status(404).json({ success: false, message: 'Company not found' });
 
+    // What a company hires for describes it better than anything it writes
+    // about itself, so the roles go to the model as evidence.
+    const jobs = await Job.find({ company: company._id })
+      .select('title skillsRequired')
+      .sort({ createdAt: -1 })
+      .limit(8);
+
     const draft = await aiService.generateCompanyProfile({
       name: company.name,
       industry: company.industry,
@@ -105,6 +112,14 @@ const generateCompanyCopy = async (req, res) => {
       country: company.location?.country,
       foundedYear: company.foundedYear,
       companySize: company.companySize,
+      website: company.website,
+      tagline: company.tagline,
+      description: company.description,
+      about: company.about,
+      benefits: company.benefits,
+      values: company.values,
+      jobTitles: jobs.map((j) => j.title),
+      jobSkills: [...new Set(jobs.flatMap((j) => j.skillsRequired || []))],
       notes: req.body?.notes || ''
     });
 
