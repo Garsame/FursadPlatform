@@ -30,11 +30,19 @@ const credentialLimiter = rateLimit({
     res.status(429).json(message('Too many attempts. Please wait 15 minutes and try again.'))
 });
 
-/** Anything that causes an email to be sent to an address the caller names. */
+/**
+ * Anything that causes an email to be sent to an address the caller names.
+ *
+ * Four per ten minutes was too tight to live with: signing up, resending a
+ * code and then walking through a password reset spends the whole allowance,
+ * so an ordinary person — or anyone demonstrating the product — gets locked
+ * out of a flow they are using correctly. Eight still makes bulk sending
+ * useless to an attacker.
+ */
 const emailLimiter = rateLimit({
   ...common,
   windowMs: 10 * 60 * 1000,
-  limit: 4,
+  limit: Number(process.env.RATE_LIMIT_EMAIL || 8),
   skipSuccessfulRequests: false, // here the send IS the cost, success or not
   handler: (req, res) =>
     res.status(429).json(message('Too many requests. Please wait a few minutes before asking for another code.'))

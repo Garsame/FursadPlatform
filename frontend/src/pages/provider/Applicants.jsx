@@ -7,7 +7,10 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ApplicantCvPanel from '../../components/ApplicantCvPanel';
 import { io } from 'socket.io-client';
-import { Brain, User, Calendar, MapPin, Send, MessageSquare, Clipboard, Mail, Sparkles, BookOpen, Download, Loader2, Check, Lock } from 'lucide-react';
+import {
+  Brain, User, Calendar, MapPin, Send, MessageSquare, Clipboard, Mail, Sparkles,
+  BookOpen, Briefcase, Download, Loader2, Check, Lock,
+} from 'lucide-react';
 
 const Applicants = () => {
   const { id: jobId } = useParams();
