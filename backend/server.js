@@ -37,6 +37,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Avatars are public by design; CVs are NOT served statically — they go through
+// an authorised download route in cvController.
+app.use('/uploads/avatars', express.static(require('path').join(__dirname, 'uploads', 'avatars')));
+
 // API Routes
 app.use('/api', routes);
 

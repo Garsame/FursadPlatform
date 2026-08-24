@@ -24,12 +24,19 @@ import Contact from './pages/public/Contact';
 import SignIn from './pages/public/SignIn';
 import SignUp from './pages/public/SignUp';
 import Verify from './pages/public/Verify';
+import ForgotPassword from './pages/public/ForgotPassword';
+import PublicJobs from './pages/public/Jobs';
+import PublicJobDetail from './pages/public/JobDetail';
+import PublicCompanyProfile from './pages/public/CompanyProfile';
 
 // Jobseeker Pages
 import JobseekerDashboard from './pages/jobseeker/Dashboard';
 import JobseekerJobs from './pages/jobseeker/Jobs';
 import JobseekerApplications from './pages/jobseeker/Applications';
 import JobseekerProfile from './pages/jobseeker/Profile';
+import JobseekerCvs from './pages/jobseeker/Cvs';
+import JobseekerProfileBuilder from './pages/jobseeker/ProfileBuilder';
+import JobseekerMessages from './pages/jobseeker/Messages';
 
 // Provider Pages
 import ProviderLogin from './pages/provider/Login';
@@ -38,6 +45,8 @@ import ProviderDashboard from './pages/provider/Dashboard';
 import ProviderPostJob from './pages/provider/PostJob';
 import ProviderMyJobs from './pages/provider/MyJobs';
 import ProviderApplicants from './pages/provider/Applicants';
+import ProviderCompany from './pages/provider/Company';
+import ProviderEditJob from './pages/provider/EditJob';
 
 // Admin Pages
 import AdminLogin from './pages/admin/Login';
@@ -62,11 +71,15 @@ function App() {
               {/* 1. PUBLIC ROUTES */}
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<Home />} />
+                <Route path="/jobs" element={<PublicJobs />} />
+                <Route path="/jobs/:id" element={<PublicJobDetail />} />
+                <Route path="/companies/:id" element={<PublicCompanyProfile />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/signup" element={<SignUp />} />
                 <Route path="/verify" element={<Verify />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
               </Route>
 
               {/* 2. JOBSEEKER PROTECTED DASHBOARD ROUTES */}
@@ -74,7 +87,10 @@ function App() {
                 <Route element={<DashboardLayout />}>
                   <Route path="/dashboard" element={<JobseekerDashboard />} />
                   <Route path="/dashboard/jobs" element={<JobseekerJobs />} />
+                  <Route path="/dashboard/cvs" element={<JobseekerCvs />} />
                   <Route path="/dashboard/applications" element={<JobseekerApplications />} />
+                  <Route path="/dashboard/messages" element={<JobseekerMessages />} />
+                  <Route path="/dashboard/build" element={<JobseekerProfileBuilder />} />
                   <Route path="/dashboard/profile" element={<JobseekerProfile />} />
                 </Route>
               </Route>
@@ -90,7 +106,9 @@ function App() {
                   <Route path="/provider/dashboard" element={<ProviderDashboard />} />
                   <Route path="/provider/jobs/new" element={<ProviderPostJob />} />
                   <Route path="/provider/jobs" element={<ProviderMyJobs />} />
+                  <Route path="/provider/jobs/:id/edit" element={<ProviderEditJob />} />
                   <Route path="/provider/jobs/:id/applicants" element={<ProviderApplicants />} />
+                  <Route path="/provider/company" element={<ProviderCompany />} />
                 </Route>
               </Route>
 

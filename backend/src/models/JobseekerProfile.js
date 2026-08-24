@@ -99,7 +99,32 @@ const jobseekerProfileSchema = new mongoose.Schema(
       {
         type: String
       }
-    ]
+    ],
+
+    // --- AI-guided profile interview ---
+    aiInterview: {
+      answers: [{
+        field:    String,
+        question: String,
+        answer:   String,
+        answeredAt: { type: Date, default: Date.now }
+      }],
+      completedAt: { type: Date, default: null }
+    },
+
+    // What the AI concluded the candidate is, from identity + answers + CVs.
+    mainJobSpecification: {
+      title:     { type: String, default: '' },
+      summary:   { type: String, default: '' },
+      strengths: [{ type: String }],
+      suggestedRoles: [{ type: String }],
+      idealSalary: {
+        min:      { type: Number, default: 0 },
+        max:      { type: Number, default: 0 },
+        currency: { type: String, default: 'USD' }
+      },
+      generatedAt: { type: Date, default: null }
+    }
   },
   {
     timestamps: true

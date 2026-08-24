@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import api from '../../services/api';
+import AvatarUploader from '../../components/AvatarUploader';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -200,17 +201,32 @@ const Profile = () => {
       {message && <div className="bg-success/10 border border-success/30 text-success p-4 rounded-card text-sm font-semibold">{message}</div>}
       {error && <div className="bg-danger/10 border border-danger/30 text-danger p-4 rounded-card text-sm font-semibold">{error}</div>}
 
-      {/* Completeness Bar */}
-      <Card className="flex flex-col gap-3">
-        <div className="flex justify-between items-center text-sm">
-          <span className="font-bold text-text-primary">Profile Completeness Profile</span>
-          <span className="font-extrabold text-brand-green">{completeness}%</span>
-        </div>
-        <div className="w-full bg-bg-elevated h-3 rounded-full overflow-hidden border border-border-subtle">
-          <div 
-            className="bg-brand-green h-full rounded-full transition-all duration-500" 
-            style={{ width: `${completeness}%` }}
-          />
+      {/* Identity: photo + completeness */}
+      <Card className="flex flex-col sm:flex-row items-center gap-6">
+        <AvatarUploader
+          profile={profile}
+          onUploaded={(url) => setProfile((p) => ({ ...p, avatarUrl: url }))}
+          onError={setError}
+        />
+
+        <div className="flex-1 w-full min-w-0">
+          <h2 className="font-bold text-lg text-text-primary truncate">
+            {profile?.user?.name || 'Your profile'}
+          </h2>
+          <p className="text-sm text-text-secondary truncate">
+            {headline || 'Add a professional headline below'}
+          </p>
+
+          <div className="flex justify-between items-center text-sm mt-4">
+            <span className="font-semibold text-text-secondary">Profile completeness</span>
+            <span className="font-extrabold text-brand-deep">{completeness}%</span>
+          </div>
+          <div className="w-full bg-bg-elevated h-2.5 rounded-full overflow-hidden mt-1.5">
+            <div
+              className="bg-brand-green h-full rounded-full transition-all duration-500"
+              style={{ width: `${completeness}%` }}
+            />
+          </div>
         </div>
       </Card>
 

@@ -5,8 +5,9 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import ApplicantCvPanel from '../../components/ApplicantCvPanel';
 import { io } from 'socket.io-client';
-import { Brain, User, Calendar, MapPin, Send, MessageSquare, Clipboard, Mail, Sparkles, BookOpen } from 'lucide-react';
+import { Brain, User, Calendar, MapPin, Send, MessageSquare, Clipboard, Mail, Sparkles, BookOpen, Download, Loader2, Check, Lock } from 'lucide-react';
 
 const Applicants = () => {
   const { id: jobId } = useParams();
@@ -24,12 +25,32 @@ const Applicants = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  // Whether this thread is open to the candidate. Sent by the server on join
+  // and whenever it changes, so the rule is never guessed at in the browser.
+  const [convState, setConvState] = useState(null);
+  const [cvBusy, setCvBusy] = useState(null);
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   // UI state for status updating
   const [statusLoading, setStatusLoading] = useState(false);
   const [prepLoading, setPrepLoading] = useState(false);
+
+  // AI shortlist of the people who applied
+  const [shortlist, setShortlist] = useState(null);
+  const [shortlistLoading, setShortlistLoading] = useState(false);
+
+  const loadShortlist = async () => {
+    setShortlistLoading(true);
+    try {
+      const res = await api.get(`/applications/job/${jobId}/shortlist`);
+      if (res.data?.success) setShortlist(res.data.data);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not rank applicants.');
+    } finally {
+      setShortlistLoading(false);
+    }
+  };
 
   const fetchApplicants = async () => {
     try {
@@ -76,6 +97,8 @@ const Applicants = () => {
         setChatMessages((prev) => [...prev, msg]);
         scrollToBottom();
       });
+
+      socketRef.current.on('conversationState', (state) => setConvState(state));
 
       socketRef.current.on('errorMsg', (err) => {
         console.error('Socket error:', err.message);
@@ -145,8 +168,36 @@ const Applicants = () => {
     setNewMessage('');
   };
 
+  const handleAcceptConversation = () => {
+    if (!selectedApp || !socketRef.current) return;
+    socketRef.current.emit('acceptConversation', selectedApp._id);
+  };
+
+  /** Pulls the CV through the authorised download route, not a public URL. */
+  const downloadCv = async (cv) => {
+    if (!cv?._id) return;
+    setCvBusy(cv._id);
+    try {
+      const res = await api.get(`/cvs/${cv._id}/download`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = cv.originalName || 'cv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Could not download that CV.');
+    } finally {
+      setCvBusy(null);
+    }
+  };
+
   const handleOpenChat = (app) => {
     setSelectedApp(app);
+    setConvState(null);
+    setChatMessages([]);
     setIsChatOpen(true);
   };
 
@@ -175,10 +226,65 @@ const Applicants = () => {
         <Button variant="secondary" onClick={() => navigate('/provider/jobs')}>← Back to Jobs</Button>
       </Card>
 
+      {/* AI shortlist */}
+      {applicants.length > 0 && (
+        <Card className="border-brand-green/30">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-brand-muted grid place-items-center shrink-0">
+                <Sparkles size={17} className="text-brand-deep" />
+              </span>
+              <div>
+                <h3 className="font-bold text-text-primary">AI shortlist</h3>
+                <p className="text-xs text-text-secondary">
+                  Ranks the people who applied and explains why. Advisory only — you decide.
+                </p>
+              </div>
+            </div>
+            <Button variant="secondary" onClick={loadShortlist} disabled={shortlistLoading}>
+              {shortlistLoading ? 'Analysing…' : shortlist ? 'Re-run' : 'Rank applicants'}
+            </Button>
+          </div>
+
+          {shortlist?.summary && (
+            <p className="text-sm text-text-secondary mt-4 pt-4 border-t border-border-subtle">
+              {shortlist.summary}
+            </p>
+          )}
+
+          {shortlist?.ranking?.length > 0 && (
+            <ol className="flex flex-col gap-2.5 mt-4">
+              {shortlist.ranking.map((r) => {
+                const app = applicants.find((a) => String(a._id) === String(r.applicationId));
+                const tone = r.verdict === 'strong' ? 'success'
+                  : r.verdict === 'weak' ? 'danger' : 'warning';
+                return (
+                  <li key={r.applicationId} className="flex items-start gap-3 p-3 rounded-input bg-bg-primary border border-border-subtle">
+                    <span className="w-6 h-6 rounded-full bg-brand-deep text-text-inverse text-xs font-bold grid place-items-center shrink-0">
+                      {r.rank}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-sm text-text-primary">
+                          {app?.jobseeker?.name || 'Candidate'}
+                        </span>
+                        <Badge variant={tone}>{r.verdict}</Badge>
+                        {app && <span className="text-xs text-text-muted">{app.matchScore}% match</span>}
+                      </div>
+                      <p className="text-sm text-text-secondary mt-1 leading-relaxed">{r.reason}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </Card>
+      )}
+
       {/* Ranked Applicants */}
       <div className="flex flex-col gap-4">
         <h3 className="text-lg font-bold text-text-primary">Ranked Candidates (AI Score compatibility)</h3>
-        
+
         {applicants.length === 0 ? (
           <Card className="text-center py-12 text-text-secondary">No candidates have applied to this job yet.</Card>
         ) : (
@@ -252,8 +358,26 @@ const Applicants = () => {
                   <Button variant="ghost" className="h-9 text-xs gap-1.5" onClick={() => handleOpenChat(app)}>
                     <MessageSquare size={14} /> Chat Direct
                   </Button>
-                  <Button variant="secondary" className="h-9 text-xs" onClick={() => handleOpenDetail(app)}>
-                    View CV Details →
+
+                  {app.cv ? (
+                    <Button
+                      variant="secondary"
+                      className="h-9 text-xs gap-1.5"
+                      disabled={cvBusy === app.cv._id}
+                      onClick={() => downloadCv(app.cv)}
+                      title={app.cv.originalName}
+                    >
+                      {cvBusy === app.cv._id
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <Download size={14} />}
+                      Download CV
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-text-muted">No CV submitted</span>
+                  )}
+
+                  <Button variant="primary" className="h-9 text-xs" onClick={() => handleOpenDetail(app)}>
+                    Full profile →
                   </Button>
                 </div>
               </div>
@@ -283,6 +407,18 @@ const Applicants = () => {
                 <span>•</span>
                 <span>Contact: {selectedApp.jobseeker?.phone || 'N/A'}</span>
               </div>
+            </div>
+
+            {/* CVs — the document that produced this match score */}
+            <div>
+              <h5 className="font-bold text-text-primary mb-3 flex items-center gap-1.5">
+                <BookOpen size={16} className="text-brand-deep" />
+                CVs
+              </h5>
+              <ApplicantCvPanel
+                userId={selectedApp.jobseeker?._id}
+                submittedCvId={selectedApp.cv?._id || selectedApp.cv}
+              />
             </div>
 
             {/* Cover Note */}
@@ -354,13 +490,46 @@ const Applicants = () => {
           className="max-w-md"
         >
           <div className="flex flex-col h-[50vh]">
+            {/* Until this is accepted the candidate has one message and no
+                more. Replying accepts it too, so the button is a shortcut for
+                employers who want to open the thread without writing yet. */}
+            {convState && !convState.accepted && (
+              <div className="flex items-start gap-3 mb-4 p-3 rounded-input bg-accent-ochreMuted border border-accent-ochre/35">
+                <Lock size={15} className="text-accent-ochreInk shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-accent-ochreInk leading-relaxed">
+                    {convState.candidateOpenerUsed
+                      ? `${selectedApp.jobseeker?.name?.split(' ')[0] || 'This candidate'} has sent an introduction and cannot write again until you accept.`
+                      : 'This candidate may send one introduction. Accepting opens the conversation both ways.'}
+                  </p>
+                  <Button
+                    variant="deep"
+                    className="h-8 text-xs mt-2.5 gap-1.5"
+                    onClick={handleAcceptConversation}
+                  >
+                    <Check size={13} /> Accept and open chat
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {convState?.accepted && (
+              <p className="flex items-center gap-1.5 text-[11px] text-success mb-3">
+                <Check size={12} /> Conversation open — you can both message freely.
+              </p>
+            )}
+
             {/* Chat Body messages */}
             <div className="flex-grow overflow-y-auto flex flex-col gap-3 pr-1 mb-4">
               {chatMessages.length === 0 ? (
                 <p className="text-xs text-text-muted text-center my-auto">Start a conversation. Type a message below.</p>
               ) : (
                 chatMessages.map((msg) => {
-                  const isMe = msg.sender.toString() === selectedApp.job.postedBy.toString();
+                  // Identify by the candidate, not by job.postedBy. `job` is
+                  // not always populated on an application, so reading
+                  // job.postedBy here threw and took the whole chat down.
+                  // Only two people can post in a thread, so "not them" is us.
+                  const isMe = String(msg.sender) !== String(selectedApp.jobseeker?._id);
                   return (
                     <div 
                       key={msg._id} 

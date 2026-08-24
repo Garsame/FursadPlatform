@@ -4,13 +4,37 @@ import api from '../../services/api';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import { Calendar, Users, MapPin } from 'lucide-react';
+import { Calendar, Users, MapPin, Pencil, XCircle, RotateCcw, AlertCircle } from 'lucide-react';
 
 const MyJobs = () => {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [applicantCounts, setApplicantCounts] = useState({});
+  const [statusBusy, setStatusBusy] = useState(null);
+  const [error, setError] = useState('');
+
+  /**
+   * Close takes the job out of search immediately. Reopen goes back through
+   * publish, which re-runs the AI quality screen server-side — so the status
+   * that comes back may be pending_review rather than published, and the row
+   * is updated from the response rather than from what we asked for.
+   */
+  const changeStatus = async (jobId, status) => {
+    setError('');
+    setStatusBusy(jobId);
+    try {
+      const res = await api.put(`/jobs/${jobId}`, { status });
+      if (res.data?.success) {
+        const updated = res.data.data;
+        setJobs((prev) => prev.map((j) => (j._id === jobId ? { ...j, status: updated.status } : j)));
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not update that job.');
+    } finally {
+      setStatusBusy(null);
+    }
+  };
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -57,6 +81,13 @@ const MyJobs = () => {
 
   return (
     <div className="flex flex-col gap-6">
+      {error && (
+        <div className="flex items-start gap-2.5 bg-danger/8 border border-danger/25 rounded-input p-3">
+          <AlertCircle size={16} className="text-danger shrink-0 mt-0.5" />
+          <p className="text-sm text-danger">{error}</p>
+        </div>
+      )}
+
       {jobs.length === 0 ? (
         <Card className="text-center py-12 text-text-secondary">
           No job listings posted yet. Click "Post a New Job" to begin.
@@ -99,13 +130,45 @@ const MyJobs = () => {
                   </div>
                 </div>
 
-                <Button
-                  variant="primary"
-                  className="h-9 text-xs"
-                  onClick={() => navigate(`/provider/jobs/${job._id}/applicants`)}
-                >
-                  View Applicants
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    className="h-9 text-xs"
+                    onClick={() => navigate(`/provider/jobs/${job._id}/edit`)}
+                  >
+                    <Pencil size={13} /> Edit
+                  </Button>
+
+                  {job.status === 'published' && (
+                    <Button
+                      variant="ghost"
+                      className="h-9 text-xs"
+                      disabled={statusBusy === job._id}
+                      onClick={() => changeStatus(job._id, 'closed')}
+                    >
+                      <XCircle size={13} /> {statusBusy === job._id ? 'Closing...' : 'Close'}
+                    </Button>
+                  )}
+
+                  {job.status === 'closed' && (
+                    <Button
+                      variant="ghost"
+                      className="h-9 text-xs"
+                      disabled={statusBusy === job._id}
+                      onClick={() => changeStatus(job._id, 'published')}
+                    >
+                      <RotateCcw size={13} /> {statusBusy === job._id ? 'Reopening...' : 'Reopen'}
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="primary"
+                    className="h-9 text-xs"
+                    onClick={() => navigate(`/provider/jobs/${job._id}/applicants`)}
+                  >
+                    View Applicants
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, MapPin, Phone, MessageSquare } from 'lucide-react';
+import api from '../../services/api';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -7,11 +8,25 @@ import Button from '../../components/ui/Button';
 const Contact = () => {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSuccess('Thank you for contacting us! Our support team will respond shortly.');
-    setFormData({ name: '', email: '', subject: '', message: '' });
+    setSuccess('');
+    setError('');
+    setSending(true);
+    try {
+      const res = await api.post('/contact', formData);
+      if (res.data?.success) {
+        setSuccess(res.data.message);
+        setFormData({ name: '', email: '', subject: '', message: '' });
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not send your message. Please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -99,8 +114,11 @@ const Contact = () => {
           </div>
 
           {success && <span className="text-sm text-success font-semibold">{success}</span>}
+          {error && <span className="text-sm text-danger font-semibold">{error}</span>}
 
-          <Button type="submit" variant="primary">Submit Request</Button>
+          <Button type="submit" variant="primary" disabled={sending}>
+            {sending ? 'Sending…' : 'Submit Request'}
+          </Button>
         </form>
       </Card>
     </div>

@@ -1,362 +1,419 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import {
+  Search, Sparkles, LayoutGrid, FileStack, ChevronDown, Target, AlertCircle, CheckCircle2,
+} from 'lucide-react';
 import api from '../../services/api';
-import Card from '../../components/ui/Card';
-import Badge from '../../components/ui/Badge';
-import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
+import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { Search, MapPin, DollarSign, Calendar, Sparkles, Building } from 'lucide-react';
+import JobCard from '../../components/JobCard';
+import CompanyLogo from '../../components/CompanyLogo';
+
+const WEIGHTS = { skills: 45, location: 20, salary: 15, education: 10, experience: 10 };
 
 const Jobs = () => {
-  const [searchParams] = useSearchParams();
-  const initialJobId = searchParams.get('id');
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
 
-  const [jobsData, setJobsData] = useState([]); // Array of { job, score, breakdown }
-  const [filteredJobs, setFilteredJobs] = useState([]);
+  // ?cv=<id> deep-links straight into the matched tab for that CV.
+  const cvParam = params.get('cv');
+  const [tab, setTab] = useState(cvParam ? 'matched' : 'all');
+
+  const [allJobs, setAllJobs] = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [basis, setBasis] = useState(null);
+  const [cvs, setCvs] = useState([]);
+  const [allCvs, setAllCvs] = useState([]);
+  const [source, setSource] = useState(cvParam || 'profile');
+  const [applied, setApplied] = useState(new Set());
+
   const [loading, setLoading] = useState(true);
+  const [matchError, setMatchError] = useState('');
+  const [filter, setFilter] = useState('');
 
-  // Filters state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [cityFilter, setCityFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-
-  // Selected Job Details Modal
-  const [selectedItem, setSelectedItem] = useState(null); // { job, score, breakdown }
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-
-  // Apply Modal
-  const [isApplyOpen, setIsApplyOpen] = useState(false);
+  // Apply modal
+  const [applyFor, setApplyFor] = useState(null);
   const [coverNote, setCoverNote] = useState('');
-  const [applyLoading, setApplyLoading] = useState(false);
-  const [applySuccess, setApplySuccess] = useState('');
+  const [applyCv, setApplyCv] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [applyError, setApplyError] = useState('');
+  const [applySuccess, setApplySuccess] = useState(false);
 
-  const fetchJobs = async () => {
+  // ------------------------------------------------------------- loaders
+  useEffect(() => {
+    (async () => {
+      const [jobsRes, cvsRes, appsRes] = await Promise.allSettled([
+        api.get('/jobs'),
+        api.get('/cvs'),
+        api.get('/applications/mine'),
+      ]);
+      if (jobsRes.status === 'fulfilled' && jobsRes.value.data?.success) {
+        setAllJobs(jobsRes.value.data.data);
+      }
+      if (cvsRes.status === 'fulfilled' && cvsRes.value.data?.success) {
+        // Only analysed CVs can drive matching, but any CV can be *sent* with
+        // an application — a CV that failed to parse is still the document the
+        // employer wants to read, and it must not block applying.
+        setAllCvs(cvsRes.value.data.data);
+        setCvs(cvsRes.value.data.data.filter((c) => c.parseStatus === 'parsed'));
+      }
+      if (appsRes.status === 'fulfilled' && appsRes.value.data?.success) {
+        setApplied(new Set(appsRes.value.data.data.map((a) => a.job?._id).filter(Boolean)));
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const loadMatches = useCallback(async () => {
+    setMatchError('');
     try {
-      setLoading(true);
-      // Fetch AI ranked jobs with pre-computed matching scores
-      const res = await api.get('/profile/recommendations');
+      const qs = source && source !== 'profile' ? `?cvId=${source}` : '';
+      const res = await api.get(`/profile/recommendations${qs}`);
       if (res.data?.success) {
-        setJobsData(res.data.data);
-        setFilteredJobs(res.data.data);
-        
-        // If a specific job ID was passed in URL query, open it immediately
-        if (initialJobId) {
-          const item = res.data.data.find(d => d.job._id === initialJobId);
-          if (item) {
-            setSelectedItem(item);
-            setIsDetailOpen(true);
-          }
-        }
+        setMatches(res.data.data);
+        setBasis(res.data.basis);
       }
     } catch (err) {
-      console.error('Failed to load recommended jobs:', err.message);
-    } finally {
-      setLoading(false);
+      setMatches([]);
+      setMatchError(err.response?.data?.message || 'Could not load your matches.');
     }
-  };
+  }, [source]);
 
   useEffect(() => {
-    fetchJobs();
-  }, [initialJobId]);
+    if (tab === 'matched') loadMatches();
+  }, [tab, loadMatches]);
 
-  // Apply filtering
-  useEffect(() => {
-    let result = jobsData;
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(
-        (item) =>
-          item.job.title.toLowerCase().includes(term) ||
-          item.job.description.toLowerCase().includes(term) ||
-          (item.job.company?.name || '').toLowerCase().includes(term)
-      );
-    }
-
-    if (cityFilter) {
-      const city = cityFilter.toLowerCase();
-      result = result.filter((item) => (item.job.location?.city || '').toLowerCase().includes(city));
-    }
-
-    if (typeFilter) {
-      result = result.filter((item) => item.job.employmentType === typeFilter);
-    }
-
-    setFilteredJobs(result);
-  }, [searchTerm, cityFilter, typeFilter, jobsData]);
-
-  const handleOpenDetail = (item) => {
-    setSelectedItem(item);
-    setIsDetailOpen(true);
+  const switchSource = (value) => {
+    setSource(value);
+    const p = new URLSearchParams(params);
+    if (value === 'profile') p.delete('cv'); else p.set('cv', value);
+    setParams(p, { replace: true });
   };
 
-  const handleOpenApply = () => {
-    setApplyError('');
-    setApplySuccess('');
+  // ------------------------------------------------------------- applying
+  const openApply = (job) => {
+    setApplyFor(job);
     setCoverNote('');
-    setIsApplyOpen(true);
+    setApplyError('');
+    setApplySuccess(false);
+    // Default to the CV currently driving the matches, else the primary one.
+    setApplyCv(
+      source !== 'profile'
+        ? source
+        : (allCvs.find((c) => c.isPrimary) || allCvs[0])?._id || ''
+    );
   };
 
-  const handleApplySubmit = async (e) => {
+  const submitApply = async (e) => {
     e.preventDefault();
+    if (!applyCv) {
+      setApplyError('Please choose which CV to send with this application.');
+      return;
+    }
+    setSubmitting(true);
     setApplyError('');
-    setApplySuccess('');
-    setApplyLoading(true);
-
     try {
       const res = await api.post('/applications', {
-        jobId: selectedItem.job._id,
-        coverNote
+        jobId: applyFor._id,
+        coverNote,
+        cvId: applyCv,
       });
-
       if (res.data?.success) {
-        setApplySuccess('Application submitted successfully!');
-        setTimeout(() => {
-          setIsApplyOpen(false);
-          setIsDetailOpen(false);
-          fetchJobs(); // Refresh jobs status
-        }, 1500);
+        setApplySuccess(true);
+        setApplied((prev) => new Set(prev).add(applyFor._id));
+        setTimeout(() => setApplyFor(null), 1400);
       }
     } catch (err) {
-      setApplyError(err.response?.data?.message || 'Failed to submit application');
+      setApplyError(err.response?.data?.message || 'Could not submit your application.');
     } finally {
-      setApplyLoading(false);
+      setSubmitting(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#00C27C]"></div>
-      </div>
-    );
-  }
+  // ------------------------------------------------------------- filtering
+  const term = filter.trim().toLowerCase();
+  const matchText = (job) =>
+    !term ||
+    job.title.toLowerCase().includes(term) ||
+    (job.company?.name || '').toLowerCase().includes(term) ||
+    (job.location?.city || '').toLowerCase().includes(term);
+
+  const visibleAll = allJobs.filter(matchText);
+  const visibleMatches = matches.filter((m) => matchText(m.job));
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Search & Filter Header */}
-      <Card className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 text-text-muted w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Search job title, description or company..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 h-input bg-bg-primary border border-border-subtle focus:border-brand-green focus:outline-none rounded-input text-sm"
-          />
-        </div>
+    <div>
+      <header className="mb-6">
+        <h1 className="font-display text-3xl font-semibold text-text-primary">{t('nav.jobs')}</h1>
+        <p className="text-text-secondary mt-1.5">
+          {tab === 'all' ? t('seekerjobs.all_sub') : t('seekerjobs.matched_sub')}
+        </p>
+      </header>
 
-        <Input
-          placeholder="Filter by city (e.g. Mogadishu)"
-          value={cityFilter}
-          onChange={(e) => setCityFilter(e.target.value)}
-          className="h-input"
-        />
-
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="w-full px-4 h-input bg-bg-primary border border-border-subtle focus:border-brand-green focus:outline-none rounded-input text-sm text-text-primary"
-        >
-          <option value="">All Employment Types</option>
-          <option value="full-time">Full-time</option>
-          <option value="part-time">Part-time</option>
-          <option value="contract">Contract</option>
-          <option value="internship">Internship</option>
-          <option value="remote">Remote</option>
-        </select>
-      </Card>
-
-      {/* Jobs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredJobs.length === 0 ? (
-          <div className="col-span-2 text-center py-12 text-text-secondary">
-            No matching job listings found.
-          </div>
-        ) : (
-          filteredJobs.map((item) => {
-            const { job, score } = item;
-            return (
-              <Card
-                key={job._id}
-                hoverEffect
-                onClick={() => handleOpenDetail(item)}
-                className="flex flex-col justify-between h-[200px]"
-              >
-                <div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg text-text-primary truncate max-w-[250px]">{job.title}</h3>
-                      <p className="text-sm text-text-secondary truncate mt-0.5">{job.company?.name || 'Company'}</p>
-                    </div>
-                    
-                    {/* Match Score */}
-                    <div className="flex flex-col items-end">
-                      <Badge variant="success" className="gap-1 px-2.5 py-1 text-xs">
-                        <Sparkles size={12} /> {score}% Match
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 text-xs text-text-muted mt-4">
-                    <span className="flex items-center gap-1">
-                      <MapPin size={12} /> {job.location?.city}, {job.location?.country}
-                    </span>
-                    <span>•</span>
-                    <span className="capitalize">{job.employmentType}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-border-subtle pt-3 mt-4 text-xs text-text-muted">
-                  <span>Salary: ${job.salaryRange?.min} - ${job.salaryRange?.max} /mo</span>
-                  <span className="text-brand-green font-semibold">View Details →</span>
-                </div>
-              </Card>
-            );
-          })
-        )}
+      {/* -------------------------------------------------------- Tabs */}
+      <div className="flex items-center gap-1 p-1 bg-bg-elevated rounded-btn w-fit mb-6">
+        <TabButton active={tab === 'all'} onClick={() => setTab('all')} icon={LayoutGrid}>
+          {t('seekerjobs.tab_all')}
+          <span className="ml-1.5 text-xs opacity-70">{allJobs.length}</span>
+        </TabButton>
+        <TabButton active={tab === 'matched'} onClick={() => setTab('matched')} icon={Sparkles}>
+          {t('seekerjobs.tab_matched')}
+        </TabButton>
       </div>
 
-      {/* Job Details Modal */}
-      {selectedItem && (
-        <Modal
-          isOpen={isDetailOpen}
-          onClose={() => setIsDetailOpen(false)}
-          title={selectedItem.job.title}
-          className="max-w-2xl"
-        >
-          <div className="flex flex-col gap-6">
-            {/* Header info */}
-            <div className="flex justify-between items-start bg-bg-elevated p-4 rounded-card border border-border-subtle">
-              <div>
-                <h4 className="font-bold text-lg flex items-center gap-2">
-                  <Building size={18} className="text-brand-green" />
-                  {selectedItem.job.company?.name}
-                </h4>
-                <p className="text-sm text-text-secondary flex items-center gap-1.5 mt-1.5">
-                  <MapPin size={14} /> {selectedItem.job.location?.city}, {selectedItem.job.location?.country}
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-text-muted block">AI Match compatibility</span>
-                <span className="text-2xl font-extrabold text-brand-green">{selectedItem.score}%</span>
-              </div>
-            </div>
-
-            {/* Match Score Breakdown */}
-            <div className="bg-bg-elevated/40 border border-border-subtle rounded-card p-4">
-              <h5 className="text-sm font-semibold text-text-primary mb-3">Matching Compatibility Breakdown</h5>
-              <div className="grid grid-cols-5 gap-2 text-center text-xs">
-                <div className="p-2 bg-bg-surface rounded border border-border-subtle">
-                  <span className="text-text-muted block mb-1">Skills</span>
-                  <span className="font-bold text-brand-green">{selectedItem.breakdown?.skills}%</span>
-                </div>
-                <div className="p-2 bg-bg-surface rounded border border-border-subtle">
-                  <span className="text-text-muted block mb-1">Location</span>
-                  <span className="font-bold text-brand-green">{selectedItem.breakdown?.location}%</span>
-                </div>
-                <div className="p-2 bg-bg-surface rounded border border-border-subtle">
-                  <span className="text-text-muted block mb-1">Salary</span>
-                  <span className="font-bold text-brand-green">{selectedItem.breakdown?.salary}%</span>
-                </div>
-                <div className="p-2 bg-bg-surface rounded border border-border-subtle">
-                  <span className="text-text-muted block mb-1">Education</span>
-                  <span className="font-bold text-brand-green">{selectedItem.breakdown?.education}%</span>
-                </div>
-                <div className="p-2 bg-bg-surface rounded border border-border-subtle">
-                  <span className="text-text-muted block mb-1">Experience</span>
-                  <span className="font-bold text-brand-green">{selectedItem.breakdown?.experience}%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Job details */}
-            <div className="flex flex-col gap-4 text-sm">
-              <div className="flex flex-wrap gap-6 text-text-secondary border-b border-border-subtle pb-4">
-                <div className="flex items-center gap-1.5">
-                  <DollarSign size={16} className="text-brand-green" />
-                  <span>Salary: ${selectedItem.job.salaryRange?.min} - ${selectedItem.job.salaryRange?.max} USD</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Calendar size={16} className="text-brand-green" />
-                  <span>Type: <span className="capitalize">{selectedItem.job.employmentType}</span></span>
-                </div>
-              </div>
-
-              <div>
-                <h5 className="font-bold text-text-primary mb-2">Required Skills</h5>
-                <div className="flex flex-wrap gap-2">
-                  {selectedItem.job.skillsRequired?.map((skill, idx) => (
-                    <Badge key={idx}>{skill}</Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h5 className="font-bold text-text-primary mb-2">Job Description</h5>
-                <div className="text-text-secondary leading-relaxed whitespace-pre-line bg-bg-primary/50 p-4 rounded-card border border-border-subtle font-mono text-xs max-h-[200px] overflow-y-auto">
-                  {selectedItem.job.description}
-                </div>
-              </div>
-            </div>
-
-            {/* CTAs */}
-            <div className="flex items-center justify-end gap-3 border-t border-border-subtle pt-4">
-              <Button variant="secondary" onClick={() => setIsDetailOpen(false)}>Close</Button>
-              <Button variant="primary" onClick={handleOpenApply}>Apply Now</Button>
-            </div>
+      {/* ---------------------------------------------- Matched controls */}
+      {tab === 'matched' && (
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <label className="text-sm font-semibold text-text-primary">{t('seekerjobs.matched_by')}</label>
+          <div className="relative">
+            <select
+              value={source}
+              onChange={(e) => switchSource(e.target.value)}
+              className="h-10 pl-4 pr-9 rounded-btn bg-bg-surface border border-border-subtle text-sm
+                font-medium text-text-primary appearance-none cursor-pointer
+                hover:border-border-strong focus:outline-none focus:border-brand-green"
+            >
+              <option value="profile">{t('seekerjobs.use_profile')}</option>
+              {cvs.map((cv) => (
+                <option key={cv._id} value={cv._id}>
+                  {cv.label}{cv.isPrimary ? ' ★' : ''}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           </div>
-        </Modal>
+
+          {basis?.type === 'cv' && (
+            <Badge variant="brand"><FileStack size={11} /> {basis.cvLabel}</Badge>
+          )}
+        </div>
       )}
 
-      {/* Apply Modal */}
-      {selectedItem && (
-        <Modal
-          isOpen={isApplyOpen}
-          onClose={() => setIsApplyOpen(false)}
-          title={`Apply to ${selectedItem.job.title}`}
-        >
-          <form onSubmit={handleApplySubmit} className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-text-secondary">Cover Letter / Note</label>
-              <textarea
-                placeholder="Describe why you are a great fit for this opportunity..."
-                rows={5}
-                value={coverNote}
-                onChange={(e) => setCoverNote(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-bg-surface border border-border-subtle focus:border-brand-green focus:outline-none rounded-input text-sm text-text-primary placeholder:text-text-muted transition-colors duration-200"
-              />
-            </div>
+      {/* --------------------------------------------------- Local filter */}
+      <div className="relative max-w-sm mb-6">
+        <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder={t('seekerjobs.search_ph')}
+          className="w-full h-10 pl-10 pr-4 bg-bg-surface border border-border-subtle rounded-input
+            text-sm text-text-primary placeholder:text-text-muted focus:outline-none
+            focus:border-brand-green focus:ring-4 focus:ring-brand-green/18 transition-all"
+        />
+      </div>
+
+      {/* -------------------------------------------------------- Content */}
+      {loading ? (
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-64 rounded-card bg-bg-elevated animate-pulse" />
+          ))}
+        </div>
+      ) : tab === 'all' ? (
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          {visibleAll.map((job) => (
+            <JobCard key={job._id} job={job} />
+          ))}
+        </div>
+      ) : cvs.length === 0 && source === 'profile' && matches.length === 0 && matchError ? (
+        <NoCvs t={t} navigate={navigate} message={matchError} />
+      ) : (
+        <div className="flex flex-col gap-4">
+          {visibleMatches.map(({ job, score, breakdown }) => (
+            <MatchRow
+              key={job._id}
+              job={job}
+              score={score}
+              breakdown={breakdown}
+              alreadyApplied={applied.has(job._id)}
+              onApply={() => openApply(job)}
+              t={t}
+            />
+          ))}
+          {visibleMatches.length === 0 && !matchError && (
+            <p className="text-sm text-text-secondary py-8 text-center">No matches to show.</p>
+          )}
+          {matchError && <NoCvs t={t} navigate={navigate} message={matchError} />}
+        </div>
+      )}
+
+      {/* --------------------------------------------------- Apply modal */}
+      <Modal
+        isOpen={!!applyFor}
+        onClose={() => setApplyFor(null)}
+        title={applySuccess ? t('jobdetail.applied_title') : t('jobdetail.apply_to', { title: applyFor?.title || '' })}
+        subtitle={applySuccess ? '' : applyFor?.company?.name}
+      >
+        {applySuccess ? (
+          <div className="text-center py-6">
+            <span className="w-14 h-14 rounded-full bg-brand-muted grid place-items-center mx-auto">
+              <CheckCircle2 size={28} className="text-success" />
+            </span>
+            <p className="text-text-secondary mt-4">{t('jobdetail.applied_sub')}</p>
+          </div>
+        ) : (
+          <form onSubmit={submitApply}>
+            {allCvs.length > 0 ? (
+              <>
+                <label className="text-sm font-semibold text-text-primary">
+                  Which CV should we send? <span className="text-danger">*</span>
+                </label>
+                <select
+                  value={applyCv}
+                  onChange={(e) => setApplyCv(e.target.value)}
+                  required
+                  className="w-full h-input px-4 mt-1.5 mb-5 bg-bg-primary border border-border-subtle rounded-input
+                    text-text-primary focus:outline-none focus:border-brand-green"
+                >
+                  {allCvs.map((cv) => (
+                    <option key={cv._id} value={cv._id}>
+                      {cv.label}{cv.parseStatus !== 'parsed' ? ' (not analysed)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <div className="mb-5 p-4 rounded-input bg-bg-elevated border border-border-subtle text-center">
+                <p className="text-sm text-text-secondary">
+                  Every application is sent with a CV. Upload one to apply.
+                </p>
+                <Button variant="primary" className="mt-3" onClick={() => navigate('/dashboard/cvs')}>
+                  Upload a CV
+                </Button>
+              </div>
+            )}
+
+            <label htmlFor="note" className="text-sm font-semibold text-text-primary">
+              {t('jobdetail.cover_label')}
+            </label>
+            <p className="text-xs text-text-muted mt-1 mb-3">{t('jobdetail.cover_hint')}</p>
+            <textarea
+              id="note"
+              rows={5}
+              value={coverNote}
+              onChange={(e) => setCoverNote(e.target.value)}
+              placeholder={t('jobdetail.cover_placeholder')}
+              className="w-full px-4 py-3 bg-bg-primary border border-border-subtle rounded-input
+                text-text-primary placeholder:text-text-muted resize-none focus:outline-none
+                focus:border-brand-green focus:ring-4 focus:ring-brand-green/18 transition-all"
+            />
 
             {applyError && (
-              <div className="bg-danger/10 border border-danger/30 text-danger rounded-btn p-3 text-sm">
-                {applyError}
-              </div>
+              <p className="flex items-center gap-2 text-sm text-danger mt-3">
+                <AlertCircle size={15} /> {applyError}
+              </p>
             )}
 
-            {applySuccess && (
-              <div className="bg-success/10 border border-success/30 text-success rounded-btn p-3 text-sm font-semibold">
-                {applySuccess}
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-3">
-              <Button variant="secondary" onClick={() => setIsApplyOpen(false)} disabled={applyLoading}>
-                Cancel
+            <div className="flex gap-3 mt-6">
+              <Button variant="secondary" fullWidth onClick={() => setApplyFor(null)}>
+                {t('jobdetail.cancel')}
               </Button>
-              <Button type="submit" variant="primary" disabled={applyLoading}>
-                {applyLoading ? 'Submitting...' : 'Submit Application'}
+              <Button type="submit" variant="primary" fullWidth disabled={submitting || !applyCv}>
+                {submitting ? t('jobdetail.submitting') : t('jobdetail.submit')}
               </Button>
             </div>
           </form>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };
+
+/* ------------------------------------------------------------------ */
+
+const TabButton = ({ active, onClick, icon: Icon, children }) => (
+  <button
+    onClick={onClick}
+    className={`inline-flex items-center gap-2 h-9 px-4 rounded-[7px] text-sm font-semibold transition-all ${
+      active ? 'bg-bg-surface text-brand-deep shadow-card' : 'text-text-secondary hover:text-text-primary'
+    }`}
+  >
+    <Icon size={16} /> {children}
+  </button>
+);
+
+const NoCvs = ({ t, navigate, message }) => (
+  <div className="text-center py-2xl border border-dashed border-border-strong rounded-card bg-bg-surface">
+    <span className="w-16 h-16 rounded-2xl bg-brand-muted grid place-items-center mx-auto">
+      <FileStack size={26} className="text-brand-deep" />
+    </span>
+    <h3 className="font-bold text-lg text-text-primary mt-5">{t('seekerjobs.no_cvs_title')}</h3>
+    <p className="text-sm text-text-secondary mt-2 max-w-md mx-auto">{message || t('seekerjobs.no_cvs_sub')}</p>
+    <Button variant="primary" className="mt-6" onClick={() => navigate('/dashboard/cvs')}>
+      {t('seekerjobs.no_cvs_cta')}
+    </Button>
+  </div>
+);
+
+/** A match row shows the score AND why it scored that way — the transparency is
+ *  the whole point of the matching engine. */
+const MatchRow = ({ job, score, breakdown, alreadyApplied, onApply, t }) => (
+  <div className="bg-bg-surface border border-border-subtle rounded-card shadow-card p-5">
+    <div className="flex flex-wrap items-start gap-4">
+      <CompanyLogo name={job.company?.name} logoUrl={job.company?.logoUrl} size="md" />
+
+      <div className="min-w-0 flex-1">
+        <Link to={`/jobs/${job._id}`} className="font-bold text-text-primary hover:text-brand-deep transition-colors">
+          {job.title}
+        </Link>
+        <p className="text-sm text-text-secondary mt-0.5">
+          {job.company?.name} · {[job.location?.city, job.location?.country].filter(Boolean).join(', ')}
+        </p>
+      </div>
+
+      <div className="text-right shrink-0">
+        <div className={`text-2xl font-extrabold leading-none ${
+          score >= 80 ? 'text-success' : score >= 55 ? 'text-brand-deep' : 'text-text-muted'
+        }`}>{score}%</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted mt-1">
+          {t('dashboard.match_score')}
+        </div>
+      </div>
+    </div>
+
+    {/* Weighted breakdown */}
+    <div className="mt-5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted mb-2.5">
+        {t('seekerjobs.score_breakdown')}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {Object.entries(WEIGHTS).map(([key, weight]) => (
+          <div key={key}>
+            <div className="flex items-baseline justify-between gap-1">
+              <span className="text-[11px] font-medium text-text-secondary">{t(`seekerjobs.${key}`)}</span>
+              <span className="text-[11px] font-bold text-text-primary">{breakdown?.[key] ?? 0}%</span>
+            </div>
+            <div className="h-1.5 bg-bg-elevated rounded-full mt-1 overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  (breakdown?.[key] ?? 0) >= 70 ? 'bg-brand-green'
+                  : (breakdown?.[key] ?? 0) >= 40 ? 'bg-accent-ochre' : 'bg-border-strong'
+                }`}
+                style={{ width: `${breakdown?.[key] ?? 0}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-text-muted">{weight}% weight</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="flex items-center gap-2 mt-5 pt-4 border-t border-border-subtle">
+      <Link to={`/jobs/${job._id}`}>
+        <Button size="sm" variant="secondary">{t('jobdetail.about_role')}</Button>
+      </Link>
+      {alreadyApplied ? (
+        <Badge variant="success" className="ml-auto"><CheckCircle2 size={12} /> {t('seekerjobs.applied')}</Badge>
+      ) : (
+        <Button size="sm" variant="primary" className="ml-auto" onClick={onApply}>
+          <Target size={15} /> {t('seekerjobs.apply')}
+        </Button>
+      )}
+    </div>
+  </div>
+);
 
 export default Jobs;

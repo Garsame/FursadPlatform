@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../config/secrets');
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fursad_default_secure_secret_key_12345', {
+  return jwt.sign({ id }, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 };

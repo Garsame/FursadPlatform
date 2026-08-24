@@ -87,7 +87,7 @@ const Dashboard = () => {
 
         <Card className="flex items-center justify-between">
           <div>
-            <span className="text-text-muted text-xs font-semibold uppercase">{t('nav.applications')}</span>
+            <span className="text-text-muted text-xs font-semibold uppercase">{t('dashboard.interviews')}</span>
             <span className="text-3xl font-extrabold text-text-primary block mt-1">{totalInterviews}</span>
           </div>
           <div className="p-3 bg-brand-green/10 text-brand-green rounded-full">

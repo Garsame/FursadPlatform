@@ -4,19 +4,22 @@ const Card = ({
   children,
   className = '',
   onClick,
-  hoverEffect = false
+  hoverEffect = false,
+  as: Tag = 'div',
+  padded = true,
 }) => {
-  const hoverStyle = hoverEffect 
-    ? 'hover:border-brand-green hover:bg-bg-elevated cursor-pointer transition-all duration-200' 
+  const hoverStyle = hoverEffect
+    ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-lift hover:border-brand-green/45'
     : '';
 
   return (
-    <div
+    <Tag
       onClick={onClick}
-      className={`bg-bg-surface border border-border-subtle rounded-card p-sm ${hoverStyle} ${className}`}
+      className={`bg-bg-surface border border-border-subtle rounded-card shadow-card
+        transition-all duration-200 ${padded ? 'p-sm' : ''} ${hoverStyle} ${className}`}
     >
       {children}
-    </div>
+    </Tag>
   );
 };
 

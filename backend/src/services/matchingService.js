@@ -1,4 +1,5 @@
 const { MATCH_WEIGHTS } = require('../../../shared/constants');
+const { scoreSkills } = require('./skillMatchService');
 
 // Education level ranking
 const EDUCATION_RANKS = {
@@ -28,7 +29,7 @@ const EXPERIENCE_RANKS = {
  * Calculates match score between a single profile and a single job.
  * Returns { score (0-100), breakdown }
  */
-const calculateMatchScore = (profile, job) => {
+const calculateMatchScore = async (profile, job) => {
   const breakdown = {
     skills: 0,
     location: 0,
@@ -37,14 +38,9 @@ const calculateMatchScore = (profile, job) => {
     experience: 0
   };
 
-  // 1. Skills Match (45%)
-  if (!job.skillsRequired || job.skillsRequired.length === 0) {
-    breakdown.skills = 100;
-  } else {
-    const candidateSkills = (profile.skills || []).map(s => s.toLowerCase().trim());
-    const matched = job.skillsRequired.filter(s => candidateSkills.includes(s.toLowerCase().trim()));
-    breakdown.skills = Math.round((matched.length / job.skillsRequired.length) * 100);
-  }
+  // 1. Skills Match (45%) — semantic when the AI is available, literal otherwise.
+  const skillResult = await scoreSkills(profile.skills || [], job.skillsRequired || []);
+  breakdown.skills = skillResult.score;
 
   // 2. Location Match (20%)
   const jobCity = (job.location?.city || '').toLowerCase().trim();
@@ -67,21 +63,22 @@ const calculateMatchScore = (profile, job) => {
   const candMax = profile.salaryExpectation?.max || 0;
 
   if (jobMin === 0 && jobMax === 0) {
-    breakdown.salary = 100; // Not specified is assumed acceptable
+    breakdown.salary = 100; // Employer did not state a range — treat as acceptable
+  } else if (candMin === 0 && candMax === 0) {
+    // Candidate has not stated an expectation. Previously this scored 0, which
+    // silently cost 15% of every CV-based score — a CV rarely lists a salary.
+    // "Unstated" is neutral on both sides, not a penalty.
+    breakdown.salary = 100;
+  } else if (candMin <= jobMax && candMax >= jobMin) {
+    breakdown.salary = 100; // ranges overlap
+  } else if (candMin > jobMax) {
+    // Candidate wants more than the job pays.
+    const diff = candMin - jobMax;
+    breakdown.salary = jobMax > 0 ? Math.max(0, Math.round(100 - (diff / jobMax) * 100)) : 0;
   } else {
-    // If there is an overlap
-    if (candMin <= jobMax && candMax >= jobMin) {
-      breakdown.salary = 100;
-    } else {
-      // Proximity score
-      if (candMin > jobMax) {
-        const diff = candMin - jobMax;
-        breakdown.salary = Math.max(0, Math.round(100 - (diff / jobMax) * 100));
-      } else {
-        const diff = jobMin - candMax;
-        breakdown.salary = Math.max(0, Math.round(100 - (diff / jobMin) * 100));
-      }
-    }
+    // Candidate would accept less than the job's floor — not a mismatch.
+    const diff = jobMin - candMax;
+    breakdown.salary = jobMin > 0 ? Math.max(0, Math.round(100 - (diff / jobMin) * 100)) : 100;
   }
 
   // 4. Education level (10%)
@@ -128,25 +125,21 @@ const calculateMatchScore = (profile, job) => {
 /**
  * Rank job list for a candidate's profile
  */
-const rankJobsForCandidate = (profile, jobs) => {
-  const scoredJobs = jobs.map(job => {
-    const { score, breakdown } = calculateMatchScore(profile, job);
-    return { job, score, breakdown };
-  });
-
-  return scoredJobs.sort((a, b) => b.score - a.score);
+const rankJobsForCandidate = async (profile, jobs) => {
+  const scored = await Promise.all(
+    jobs.map(async (job) => ({ job, ...(await calculateMatchScore(profile, job)) }))
+  );
+  return scored.sort((a, b) => b.score - a.score);
 };
 
 /**
  * Rank candidate profiles list for a specific job
  */
-const rankCandidatesForJob = (job, profiles) => {
-  const scoredProfiles = profiles.map(profile => {
-    const { score, breakdown } = calculateMatchScore(profile, job);
-    return { profile, score, breakdown };
-  });
-
-  return scoredProfiles.sort((a, b) => b.score - a.score);
+const rankCandidatesForJob = async (job, profiles) => {
+  const scored = await Promise.all(
+    profiles.map(async (profile) => ({ profile, ...(await calculateMatchScore(profile, job)) }))
+  );
+  return scored.sort((a, b) => b.score - a.score);
 };
 
 module.exports = {

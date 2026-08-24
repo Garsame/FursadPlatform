@@ -1,18 +1,54 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Helper to initialize Gemini API safely
+/**
+ * Model IDs are env-driven so they can be bumped without a code change as
+ * Google ships newer Flash releases — check Google AI Studio for the current id.
+ */
+const MODEL_ID = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const EMBED_MODEL_ID = process.env.GEMINI_EMBED_MODEL || 'text-embedding-004';
+
+let genAI = null;
 let model = null;
+let embedModel = null;
+
 if (process.env.GEMINI_API_KEY) {
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    console.log('Gemini AI Engine Initialized successfully.');
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    model = genAI.getGenerativeModel({ model: MODEL_ID });
+    embedModel = genAI.getGenerativeModel({ model: EMBED_MODEL_ID });
+    console.log(`Gemini AI initialised — chat: ${MODEL_ID}, embeddings: ${EMBED_MODEL_ID}`);
   } catch (error) {
     console.error('Failed to initialize Gemini AI Engine:', error.message);
   }
 } else {
   console.log('Gemini API key missing. AI service running in Mock Mode.');
 }
+
+/** True when a real key is configured — lets callers tell live output from fallbacks. */
+const isLive = () => !!model;
+
+/** Strips ```json fences that models often wrap JSON in. */
+const parseJson = (text) => JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
+
+/**
+ * Embeds a batch of short strings (skill names). Returns null when the AI is
+ * unavailable so callers can fall back to string comparison.
+ */
+const embedTexts = async (texts) => {
+  if (!embedModel || !texts?.length) return null;
+  try {
+    const res = await embedModel.batchEmbedContents({
+      requests: texts.map((t) => ({
+        content: { parts: [{ text: t }] },
+        taskType: 'SEMANTIC_SIMILARITY'
+      }))
+    });
+    return res.embeddings.map((e) => e.values);
+  } catch (error) {
+    console.error('AI Embed Error:', error.message);
+    return null;
+  }
+};
 
 /**
  * 1. Parse Resume
@@ -72,13 +108,42 @@ const parseResume = async (rawText, language = 'en') => {
     `;
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
+    return normaliseParsedResume(parseJson(result.response.text()));
   } catch (error) {
     console.error('AI Parse Resume Error:', error.message);
     return defaultFallback;
   }
+};
+
+const EXPERIENCE_LEVELS = ['entry', 'mid', 'senior', 'lead', 'executive'];
+
+/**
+ * Models answer with human casing ("Senior", "Bachelor's Degree"). The profile
+ * schema enums are lowercase, so an un-normalised value fails validation on
+ * save. Coerce here, once, rather than at every call site.
+ */
+const normaliseParsedResume = (parsed) => {
+  if (!parsed || typeof parsed !== 'object') return parsed;
+
+  const lvl = String(parsed.experienceLevel || '').toLowerCase().trim();
+  parsed.experienceLevel = EXPERIENCE_LEVELS.find((l) => lvl.includes(l)) || 'entry';
+
+  if (Array.isArray(parsed.skills)) {
+    parsed.skills = [...new Set(
+      parsed.skills.filter((s) => typeof s === 'string').map((s) => s.trim()).filter(Boolean)
+    )];
+  }
+
+  // Dates arrive as strings; Mongoose casts them, but "present"/null must not
+  // become Invalid Date.
+  if (Array.isArray(parsed.experience)) {
+    parsed.experience = parsed.experience.map((e) => ({
+      ...e,
+      endDate: !e.endDate || /present|current/i.test(String(e.endDate)) ? null : e.endDate
+    }));
+  }
+
+  return parsed;
 };
 
 /**
@@ -97,26 +162,52 @@ const reviewJobPost = async (jobData) => {
 
   try {
     const prompt = `
-      You are an automated job quality auditor. Analyze the job posting details for fraud, spam, or low quality.
+      You screen job postings on a Somali job platform.
+
+      Separate two very different judgements:
+
+      1. fraudRisk — is this posting DANGEROUS or DECEPTIVE? Raise fraudFlags ONLY for
+         genuine scam signals, such as: asking applicants for money or a registration
+         fee, promising unrealistic earnings, no identifiable employer, pushing people
+         to contact a personal WhatsApp/Telegram instead of applying, requests for
+         bank details or documents up front, or trafficking-style wording.
+
+      2. qualityScore — how POLISHED is the listing? This is advice for the employer.
+         A short but honest job post is legitimate; it is simply less attractive.
+         Never treat "could be more detailed" as a fraud signal.
+
+      Most real job postings are legitimate but imperfect. Those must publish.
+
       Job Details:
       Title: ${jobData.title}
       Description: ${jobData.description}
       Skills Required: ${JSON.stringify(jobData.skillsRequired)}
       Location: ${JSON.stringify(jobData.location)}
-      
-      Respond ONLY with a valid JSON object matching this structure:
+      Salary: ${JSON.stringify(jobData.salaryRange || {})}
+
+      Respond ONLY with valid JSON:
       {
-        "qualityScore": 0-100 score,
-        "flags": ["Flag description if fraud/spam detected"],
-        "suggestions": ["Suggestions to improve layout/description"],
-        "requiresManualReview": true/false (set true if quality score < 70 or flags found)
+        "qualityScore": 0-100 (polish only),
+        "fraudFlags": ["only genuine fraud or safety concerns, empty array if none"],
+        "suggestions": ["how the employer could improve the listing"],
+        "fraudRisk": "none" | "low" | "medium" | "high"
       }
     `;
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
+    const out = parseJson(result.response.text());
+
+    // The publish gate is fraud, not polish. A legitimate-but-thin post goes
+    // live with suggestions attached; only real risk goes to a human.
+    const fraudFlags = Array.isArray(out.fraudFlags) ? out.fraudFlags : [];
+    const risky = ['medium', 'high'].includes(String(out.fraudRisk || '').toLowerCase());
+
+    return {
+      qualityScore: typeof out.qualityScore === 'number' ? out.qualityScore : 75,
+      flags: fraudFlags,
+      suggestions: out.suggestions || [],
+      requiresManualReview: risky || fraudFlags.length > 0
+    };
   } catch (error) {
     console.error('AI Review Job Post Error:', error.message);
     return defaultFallback;
@@ -265,11 +356,217 @@ const generateStatusUpdateMessage = async (status, jobTitle, language = 'en') =>
   }
 };
 
+/**
+ * 7. Profile Builder — asks ONE question at a time.
+ * Given who the user is and what they have already answered, returns the next
+ * question, or signals that enough has been gathered.
+ */
+const PROFILE_TOPICS = [
+  { field: 'technicalSkills', q: 'What are the main technical skills or tools you work with day to day?' },
+  { field: 'enjoys',          q: 'What kind of work do you most enjoy doing?' },
+  { field: 'preferredRole',   q: 'What job title or role are you aiming for next?' },
+  { field: 'workStyle',       q: 'Do you prefer working on site, remotely, or a mix of both?' },
+  { field: 'salary',          q: 'What monthly salary range are you hoping for, in USD?' },
+  { field: 'industries',      q: 'Are there particular industries you want to work in, or avoid?' },
+  { field: 'hobby',           q: 'Outside work, what do you enjoy doing? It helps us understand your strengths.' },
+  { field: 'goal',            q: 'Where would you like your career to be in three years?' }
+];
+
+const nextProfileQuestion = async (context, history = []) => {
+  const answered = new Set(history.map((h) => h.field));
+  const remaining = PROFILE_TOPICS.filter((topic) => !answered.has(topic.field));
+
+  // Deterministic finish condition — never let the model loop forever.
+  if (!remaining.length) {
+    return { done: true, question: null, field: null };
+  }
+
+  const fallback = { done: false, question: remaining[0].q, field: remaining[0].field };
+  if (!model) return fallback;
+
+  try {
+    const prompt = `
+      You are interviewing a jobseeker to build their career profile, one question at a time.
+      Ask a single, short, warm question. Never ask more than one thing at once.
+      Never repeat a topic that has already been answered.
+
+      What we already know about them:
+      ${JSON.stringify(context)}
+
+      Answers so far:
+      ${history.map((h) => `- ${h.field}: ${h.answer}`).join('\n') || '(none yet)'}
+
+      The next topic to cover is "${remaining[0].field}". Suggested wording: "${remaining[0].q}"
+      Rewrite that question so it follows naturally from what they have already told you.
+      If they mentioned something specific, refer to it.
+
+      Respond ONLY with valid JSON:
+      { "question": "your question", "field": "${remaining[0].field}" }
+    `;
+
+    const result = await model.generateContent(prompt);
+    const out = parseJson(result.response.text());
+    return { done: false, question: out.question || fallback.question, field: remaining[0].field };
+  } catch (error) {
+    console.error('AI Next Profile Question Error:', error.message);
+    return fallback;
+  }
+};
+
+/**
+ * 8. Derive the candidate's "main job specification" from everything known:
+ * their identity data, their answers, and their parsed CVs.
+ */
+const deriveJobSpecification = async (context, history = [], cvSnapshots = []) => {
+  const fallback = {
+    title: context.jobSpecification || 'General Professional',
+    summary: 'Profile captured. Add a Gemini API key to generate a tailored specification.',
+    strengths: [],
+    suggestedRoles: [],
+    skillGaps: [],
+    idealSalary: { min: 0, max: 0, currency: 'USD' }
+  };
+
+  if (!model) return fallback;
+
+  try {
+    const prompt = `
+      Build a career specification for this jobseeker.
+
+      Identity: ${JSON.stringify(context)}
+      Interview answers: ${JSON.stringify(history)}
+      Skills extracted from their uploaded CVs: ${JSON.stringify(cvSnapshots)}
+
+      Respond ONLY with valid JSON matching:
+      {
+        "title": "the single job specification that best fits them, e.g. Backend Engineer",
+        "summary": "2-3 sentence description of who they are professionally",
+        "strengths": ["their strongest 3-5 selling points"],
+        "suggestedRoles": ["3-5 job titles they should search for"],
+        "skillGaps": ["2-4 skills worth learning for their target role"],
+        "idealSalary": { "min": 0, "max": 0, "currency": "USD" }
+      }
+    `;
+
+    const result = await model.generateContent(prompt);
+    return parseJson(result.response.text());
+  } catch (error) {
+    console.error('AI Derive Job Specification Error:', error.message);
+    return fallback;
+  }
+};
+
+/**
+ * 9. Draft an employer profile from a handful of facts, so businesses are not
+ * staring at an empty "about us" box.
+ */
+const generateCompanyProfile = async (facts) => {
+  const fallback = {
+    tagline: `${facts.industry || 'Business'} in ${facts.city || 'Somalia'}`,
+    description: `${facts.name} operates in the ${facts.industry || 'business'} sector.`,
+    about: '',
+    benefits: ['Competitive salary', 'Training and development'],
+    values: ['Integrity', 'Customer focus']
+  };
+  if (!model) return fallback;
+
+  try {
+    const prompt = `
+      Write the public profile for an employer on a Somali job platform.
+      Be factual and grounded; do not invent awards, revenue figures or client names.
+
+      Company: ${facts.name}
+      Industry: ${facts.industry || 'unspecified'}
+      Location: ${[facts.city, facts.country].filter(Boolean).join(', ') || 'Somalia'}
+      Founded: ${facts.foundedYear || 'unspecified'}
+      Size: ${facts.companySize || 'unspecified'}
+      Extra notes from the employer: ${facts.notes || 'none'}
+
+      Respond ONLY with valid JSON:
+      {
+        "tagline": "one short line, under 90 characters",
+        "description": "2-3 sentences a candidate reads on the job card",
+        "about": "a fuller 2-paragraph description of the company and what it is like to work there",
+        "benefits": ["4-6 realistic employee benefits"],
+        "values": ["3-5 company values"]
+      }
+    `;
+    const result = await model.generateContent(prompt);
+    return parseJson(result.response.text());
+  } catch (error) {
+    console.error('AI Generate Company Profile Error:', error.message);
+    return fallback;
+  }
+};
+
+/**
+ * 10. Rank the people who applied to one job, and say why.
+ * Deliberately scoped to actual applicants — employers never browse the pool.
+ */
+const rankApplicants = async (job, applicants) => {
+  const fallback = {
+    ranking: applicants.map((a, i) => ({
+      applicationId: a.applicationId,
+      rank: i + 1,
+      verdict: 'consider',
+      reason: 'Ranked by match score. Add a Gemini API key for AI reasoning.'
+    })),
+    summary: ''
+  };
+  if (!model || !applicants.length) return fallback;
+
+  try {
+    const prompt = `
+      You are helping a recruiter triage applicants for one role.
+
+      The role:
+      Title: ${job.title}
+      Required skills: ${JSON.stringify(job.skillsRequired)}
+      Experience level: ${job.experienceLevel || 'unspecified'}
+      Education: ${job.educationLevel || 'unspecified'}
+      Description: ${(job.description || '').slice(0, 600)}
+
+      The applicants:
+      ${JSON.stringify(applicants)}
+
+      Rank them best-first. Judge on evidence in their profile, not on
+      demographics. Be honest when someone is a weak fit.
+
+      Respond ONLY with valid JSON:
+      {
+        "ranking": [
+          {
+            "applicationId": "the id given",
+            "rank": 1,
+            "verdict": "strong" | "consider" | "weak",
+            "reason": "one sentence citing specific evidence"
+          }
+        ],
+        "summary": "one sentence on the shape of this applicant pool"
+      }
+    `;
+    const result = await model.generateContent(prompt);
+    const out = parseJson(result.response.text());
+    if (!Array.isArray(out.ranking)) return fallback;
+    return out;
+  } catch (error) {
+    console.error('AI Rank Applicants Error:', error.message);
+    return fallback;
+  }
+};
+
 module.exports = {
   parseResume,
   reviewJobPost,
+  generateCompanyProfile,
+  rankApplicants,
   generateJobDescription,
   generateCandidateSummary,
   generateInterviewQuestions,
-  generateStatusUpdateMessage
+  generateStatusUpdateMessage,
+  nextProfileQuestion,
+  deriveJobSpecification,
+  embedTexts,
+  isLive,
+  PROFILE_TOPICS
 };

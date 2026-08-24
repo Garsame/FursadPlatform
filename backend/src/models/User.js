@@ -19,6 +19,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    // --- Identity data captured at signup ---
+    gender: {
+      type: String,
+      enum: ['male', 'female', 'prefer_not_to_say', ''],
+      default: ''
+    },
+    country: { type: String, trim: true, default: '' },
+    city:    { type: String, trim: true, default: '' },
+    educationLevel: {
+      type: String,
+      enum: ['High School', 'Diploma', 'Bachelor', 'Master', 'PhD', ''],
+      default: ''
+    },
+    // The candidate's own words for what they do; the AI later refines this
+    // into JobseekerProfile.mainJobSpecification.
+    jobSpecification: { type: String, trim: true, default: '' },
+    avatarUrl: { type: String, default: '' },
     password: {
       type: String,
       required: true
@@ -45,6 +62,14 @@ const userSchema = new mongoose.Schema(
       type: String
     },
     otpExpiresAt: {
+      type: Date
+    },
+    // Password reset uses its own code, separate from the signup verification
+    // one — a reset must never consume or satisfy email verification's OTP.
+    resetOtpCode: {
+      type: String
+    },
+    resetOtpExpiresAt: {
       type: Date
     },
     lastLoginAt: {

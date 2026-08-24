@@ -71,6 +71,15 @@ const Login = () => {
             required
           />
 
+          <div className="-mt-2 text-right">
+            <Link
+              to={`/forgot-password${formData.email ? `?email=${encodeURIComponent(formData.email)}` : ''}`}
+              className="text-sm font-semibold text-brand-deep hover:underline"
+            >
+              {t('auth.forgot_link')}
+            </Link>
+          </div>
+
           <Button type="submit" variant="primary" fullWidth disabled={loading}>
             {loading ? 'Entering Portal...' : t('auth.signin_btn')}
           </Button>

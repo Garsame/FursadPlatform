@@ -3,26 +3,69 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-bg-primary text-text-primary font-sans antialiased selection:bg-brand-green/30;
+    @apply bg-bg-primary text-text-primary font-sans antialiased selection:bg-brand-green/25;
+  }
+
+  /* Display face carries the editorial voice; optical sizing keeps it from
+     looking spindly at hero scale. */
+  h1, h2, .font-display {
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+  }
+
+  /* Visible focus for keyboard users only — never a permanent outline on click. */
+  :focus-visible {
+    @apply outline-none ring-4 ring-brand-green/30 ring-offset-0 rounded-btn;
   }
 }
 
-/* Custom scrollbars for dark theme styling */
+@layer components {
+  /* Section rhythm used across every public page. */
+  .section {
+    @apply max-w-7xl mx-auto px-6 py-2xl;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brand-deep;
+  }
+
+  /* Thin ochre rule that sits under section eyebrows. */
+  .rule-ochre {
+    @apply h-px w-10 bg-accent-ochre;
+  }
+}
+
+/* Light-theme scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0D0D0D;
+  background: #F1F0EA;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2A2A2A;
-  border-radius: 4px;
+  background: #CFCABC;
+  border-radius: 999px;
+  border: 2px solid #F1F0EA;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3A3A3A;
+  background: #B3AC9B;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

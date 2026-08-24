@@ -28,6 +28,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // File uploads must NOT carry the instance-wide JSON content type: the
+    // browser has to set multipart/form-data itself so it can append the
+    // boundary. Without the boundary multer sees an empty body.
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     return config;
   },
   (error) => {

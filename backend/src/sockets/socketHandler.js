@@ -2,6 +2,31 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Application = require('../models/Application');
 const Message = require('../models/Message');
+const { JWT_SECRET } = require('../config/secrets');
+
+/**
+ * How much of the conversation is open, from the application's own record.
+ * Both portals render from this, so neither has to reimplement the rule.
+ */
+const conversationState = async (application) => {
+  const accepted = !!application.messaging?.acceptedAt;
+  const openersSent = accepted
+    ? 0
+    : await Message.countDocuments({
+        application: application._id,
+        sender: application.jobseeker,
+        isAutomated: false
+      });
+
+  return {
+    applicationId: String(application._id),
+    accepted,
+    acceptedAt: application.messaging?.acceptedAt || null,
+    // What the candidate's side is allowed to do right now.
+    candidateCanSend: accepted || openersSent === 0,
+    candidateOpenerUsed: !accepted && openersSent > 0
+  };
+};
 
 const socketHandler = (io) => {
   // Authentication middleware for Socket.IO
@@ -12,7 +37,7 @@ const socketHandler = (io) => {
         return next(new Error('Authentication error: Token required'));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fursad_default_secure_secret_key_12345');
+      const decoded = jwt.verify(token, JWT_SECRET);
       const user = await User.findById(decoded.id).select('-password');
 
       if (!user) {
@@ -63,6 +88,7 @@ const socketHandler = (io) => {
           .limit(100);
 
         socket.emit('previousMessages', messages);
+        socket.emit('conversationState', await conversationState(application));
       } catch (error) {
         console.error('Socket joinApplication error:', error.message);
         socket.emit('errorMsg', { message: error.message });
@@ -89,6 +115,19 @@ const socketHandler = (io) => {
           return socket.emit('errorMsg', { message: 'Unauthorized to send message' });
         }
 
+        // The gate. Checked here because this is the only place a message can
+        // actually be created — a disabled input in the browser is a courtesy,
+        // not a rule.
+        if (isJobseeker) {
+          const state = await conversationState(application);
+          if (!state.candidateCanSend) {
+            return socket.emit('messageBlocked', {
+              applicationId: String(applicationId),
+              message: 'Your introduction has been sent. You can carry on once the employer accepts it.'
+            });
+          }
+        }
+
         // Save message
         const message = await Message.create({
           application: applicationId,
@@ -98,6 +137,15 @@ const socketHandler = (io) => {
           isRead: false,
           isAutomated: false
         });
+
+        // An employer typing a genuine reply is acceptance — asking them to
+        // also press a button to permit the answer they just wrote would be
+        // pure ceremony. Automated status emails never open the thread.
+        if (isEmployer && !application.messaging?.acceptedAt) {
+          application.messaging = { acceptedAt: new Date(), acceptedBy: socket.user._id };
+          await application.save();
+          io.to(`application:${applicationId}`).emit('conversationState', await conversationState(application));
+        }
 
         const roomName = `application:${applicationId}`;
         
@@ -113,6 +161,40 @@ const socketHandler = (io) => {
         });
       } catch (error) {
         console.error('Socket sendMessage error:', error.message);
+        socket.emit('errorMsg', { message: error.message });
+      }
+    });
+
+    // Employer opens the thread to the candidate.
+    socket.on('acceptConversation', async (applicationId) => {
+      try {
+        const application = await Application.findById(applicationId).populate('job');
+        if (!application) {
+          return socket.emit('errorMsg', { message: 'Application not found' });
+        }
+
+        // Only the employer who owns the vacancy may accept.
+        if (application.job.postedBy.toString() !== socket.user._id.toString()) {
+          return socket.emit('errorMsg', { message: 'Only the employer can accept this conversation' });
+        }
+
+        if (!application.messaging?.acceptedAt) {
+          application.messaging = { acceptedAt: new Date(), acceptedBy: socket.user._id };
+          await application.save();
+        }
+
+        const state = await conversationState(application);
+        io.to(`application:${applicationId}`).emit('conversationState', state);
+
+        // The candidate may not have the thread open — tell them anyway.
+        io.to(`user:${application.jobseeker}`).emit('notification', {
+          type: 'chat_accepted',
+          title: `${socket.user.name} accepted your message`,
+          content: 'You can now continue the conversation.',
+          applicationId
+        });
+      } catch (error) {
+        console.error('Socket acceptConversation error:', error.message);
         socket.emit('errorMsg', { message: error.message });
       }
     });

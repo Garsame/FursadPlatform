@@ -24,3 +24,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .system_generated/
+
+# Uploaded user content.
+# CVs and profile photos are other people's personal data — real names, dates
+# of birth, phone numbers, addresses. They must never reach the repository,
+# and this repository has a public remote. The seeded company wordmarks are
+# project assets rather than uploads, so they are the one exception.
+backend/uploads/cvs/*
+!backend/uploads/cvs/.gitkeep
+backend/uploads/avatars/*
+!backend/uploads/avatars/.gitkeep
+!backend/uploads/avatars/logo-*.svg

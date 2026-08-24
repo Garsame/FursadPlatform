@@ -146,6 +146,53 @@ const reviewJob = async (req, res) => {
   }
 };
 
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * A real cumulative timeline for the last `months` months, read from createdAt.
+ *
+ * This replaced six hardcoded multipliers of the current total (total × 0.4,
+ * × 0.5 …) that were presented as monthly history. They were not history: they
+ * redrew the same shape no matter what the platform actually did, and an admin
+ * reading them would have drawn conclusions from a curve that was decoration.
+ *
+ * Cumulative rather than per-month, because the label is "growth" and the last
+ * point should reconcile with the total shown on the summary cards.
+ */
+const monthlyCumulative = async (model, months = 6) => {
+  const now = new Date();
+  // First instant of the month `months - 1` back, in UTC to match how Mongo
+  // stores and buckets the dates.
+  const windowStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1));
+
+  const [baseline, buckets] = await Promise.all([
+    // Everything that already existed when the window opened.
+    model.countDocuments({ createdAt: { $lt: windowStart } }),
+    model.aggregate([
+      { $match: { createdAt: { $gte: windowStart } } },
+      {
+        $group: {
+          _id: { y: { $year: '$createdAt' }, m: { $month: '$createdAt' } },
+          count: { $sum: 1 }
+        }
+      }
+    ])
+  ]);
+
+  const byKey = new Map(buckets.map((b) => [`${b._id.y}-${b._id.m}`, b.count]));
+
+  let running = baseline;
+  const series = [];
+
+  for (let i = 0; i < months; i++) {
+    const cursor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1) + i, 1));
+    running += byKey.get(`${cursor.getUTCFullYear()}-${cursor.getUTCMonth() + 1}`) || 0;
+    series.push({ month: MONTH_LABELS[cursor.getUTCMonth()], count: running });
+  }
+
+  return series;
+};
+
 // @desc    Get platform stats and metrics
 // @route   GET /api/admin/analytics
 // @access  Private (Admin only)
@@ -162,24 +209,19 @@ const getPlatformAnalytics = async (req, res) => {
     const employersCount = await User.countDocuments({ role: 'employer' });
     const suspendedUsersCount = await User.countDocuments({ isActive: false });
 
-    // Generate mock analytical history data for graphing
-    const userGrowth = [
-      { month: 'Jan', count: Math.round(totalUsers * 0.4) },
-      { month: 'Feb', count: Math.round(totalUsers * 0.5) },
-      { month: 'Mar', count: Math.round(totalUsers * 0.7) },
-      { month: 'Apr', count: Math.round(totalUsers * 0.8) },
-      { month: 'May', count: Math.round(totalUsers * 0.9) },
-      { month: 'Jun', count: totalUsers }
-    ];
+    const [userGrowth, jobsGrowth, totalApplications, matchStats] = await Promise.all([
+      monthlyCumulative(User),
+      monthlyCumulative(Job),
+      Application.countDocuments(),
+      // The mean match score actually recorded on applications. This replaced a
+      // hardcoded "94.2% platform match accuracy" on the analytics screen.
+      Application.aggregate([
+        { $match: { matchScore: { $gt: 0 } } },
+        { $group: { _id: null, avg: { $avg: '$matchScore' }, n: { $sum: 1 } } }
+      ])
+    ]);
 
-    const jobsGrowth = [
-      { month: 'Jan', count: Math.round(totalJobs * 0.3) },
-      { month: 'Feb', count: Math.round(totalJobs * 0.4) },
-      { month: 'Mar', count: Math.round(totalJobs * 0.6) },
-      { month: 'Apr', count: Math.round(totalJobs * 0.7) },
-      { month: 'May', count: Math.round(totalJobs * 0.9) },
-      { month: 'Jun', count: totalJobs }
-    ];
+    const avgMatchScore = matchStats.length ? Math.round(matchStats[0].avg * 10) / 10 : null;
 
     return res.status(200).json({
       success: true,
@@ -189,9 +231,14 @@ const getPlatformAnalytics = async (req, res) => {
           totalJobs,
           pendingReviews: pendingJobsCount,
           activeApplications,
+          totalApplications,
           jobseekersCount,
           employersCount,
-          suspendedUsersCount
+          suspendedUsersCount,
+          // null means "not enough data to say" — the UI must render that as
+          // such rather than inventing a number to fill the space.
+          avgMatchScore,
+          avgMatchSampleSize: matchStats.length ? matchStats[0].n : 0
         },
         charts: {
           userGrowth,

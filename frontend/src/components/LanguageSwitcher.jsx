@@ -2,22 +2,26 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 
-const LanguageSwitcher = ({ className = '' }) => {
+const LanguageSwitcher = ({ className = '', variant = 'default' }) => {
   const { i18n } = useTranslation();
+  const isSomali = i18n.language === 'so';
 
-  const toggleLanguage = () => {
-    const nextLang = i18n.language === 'en' ? 'so' : 'en';
-    i18n.changeLanguage(nextLang);
-  };
+  const toggleLanguage = () => i18n.changeLanguage(isSomali ? 'en' : 'so');
+
+  const styles =
+    variant === 'onDeep'
+      ? 'bg-white/10 hover:bg-white/18 border-border-onDeep text-text-inverse'
+      : 'bg-bg-surface hover:bg-bg-elevated border-border-subtle hover:border-border-strong text-text-secondary hover:text-text-primary';
 
   return (
     <button
       onClick={toggleLanguage}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-btn bg-bg-surface hover:bg-bg-elevated border border-border-subtle hover:border-brand-green text-sm text-text-secondary hover:text-text-primary transition-all duration-200 ${className}`}
-      title={i18n.language === 'en' ? 'U badal Soomaali' : 'Switch to English'}
+      className={`inline-flex items-center gap-2 px-3 h-9 rounded-pill border text-sm font-medium
+        transition-all duration-200 ${styles} ${className}`}
+      title={isSomali ? 'Switch to English' : 'U badal Soomaali'}
     >
-      <Globe size={16} className="text-brand-green" />
-      <span>{i18n.language === 'en' ? 'Somali' : 'English'}</span>
+      <Globe size={15} className={variant === 'onDeep' ? 'text-brand-green' : 'text-brand-deep'} />
+      <span>{isSomali ? 'EN' : 'SO'}</span>
     </button>
   );
 };

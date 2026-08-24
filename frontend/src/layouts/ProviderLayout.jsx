@@ -1,99 +1,112 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useProviderAuth } from '../context/ProviderAuthContext';
-import { Briefcase, LayoutDashboard, PlusCircle, FolderKanban, Users, LogOut } from 'lucide-react';
+import {
+  LayoutDashboard, PlusCircle, Briefcase, Building2, LogOut, Menu,
+} from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import Logo from '../components/Logo';
 
 const ProviderLayout = () => {
   const { t } = useTranslation();
   const { user, logout } = useProviderAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/provider/login');
-  };
+  const handleLogout = () => { logout(); navigate('/'); };
 
   const navItems = [
-    { path: '/provider/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
-    { path: '/provider/jobs/new', label: t('nav.post_job'), icon: PlusCircle },
-    { path: '/provider/jobs', label: 'My Posted Jobs', icon: FolderKanban }
+    { path: '/provider/dashboard', label: t('nav.dashboard'),   icon: LayoutDashboard },
+    { path: '/provider/jobs/new',  label: t('nav.post_job'),    icon: PlusCircle },
+    { path: '/provider/jobs',      label: t('provider.my_jobs'), icon: Briefcase },
+    { path: '/provider/company',   label: t('provider.company'), icon: Building2 },
   ];
 
+  const title = navItems.find((i) => i.path === location.pathname)?.label
+    || (location.pathname.includes('/applicants') ? t('provider.applicants') : '');
+
+  const Body = () => (
+    <>
+      <div className="h-navbar border-b border-border-subtle flex items-center px-5 shrink-0">
+        <Link to="/provider/dashboard" aria-label="Fursad"><Logo /></Link>
+      </div>
+
+      <nav className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-1">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-btn text-sm transition-all duration-200 ${
+                isActive
+                  ? 'bg-brand-deep text-text-inverse font-semibold shadow-card'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated font-medium'
+              }`}
+            >
+              <Icon size={18} className={isActive ? 'text-brand-green' : ''} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="shrink-0 border-t border-border-subtle p-3">
+        <div className="px-3 py-2.5 rounded-btn bg-bg-elevated">
+          <p className="text-[11px] text-text-muted leading-none">{t('nav.logged_in_as')}</p>
+          <p className="text-sm font-semibold truncate text-text-primary mt-1">{user?.name || 'Employer'}</p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-2.5 mt-2 rounded-btn text-sm font-medium
+            text-danger hover:bg-danger/8 transition-colors"
+        >
+          <LogOut size={18} /> <span>{t('nav.signout')}</span>
+        </button>
+      </div>
+    </>
+  );
+
   return (
-    <div className="min-h-screen bg-bg-primary text-text-primary flex">
-      {/* Sidebar (240px) */}
-      <aside className="w-sidebar bg-bg-surface border-r border-border-subtle flex flex-col justify-between shrink-0">
-        <div>
-          {/* Logo Header */}
-          <div className="h-navbar border-b border-border-subtle flex items-center px-6 gap-2">
-            <Briefcase className="text-brand-green w-6 h-6" />
-            <span className="text-xl font-bold tracking-tight text-brand-green">Fursad</span>
-            <span className="text-[10px] bg-brand-green/20 text-brand-green px-1.5 py-0.5 rounded font-mono uppercase ml-1">Provider</span>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="p-4 flex flex-col gap-1">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-btn text-sm font-medium transition-all duration-200 ${
-                    isActive
-                      ? 'bg-brand-green text-bg-primary font-semibold'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Sidebar Footer Logout */}
-        <div className="p-4 border-t border-border-subtle">
-          <div className="mb-4 px-4 py-2 bg-bg-elevated rounded-card">
-            <p className="text-xs text-text-muted">Logged in as Employer</p>
-            <p className="text-sm font-semibold truncate text-text-primary">{user?.name || 'Job Provider'}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-btn text-sm font-medium text-danger hover:bg-danger/10 transition-colors duration-200"
-          >
-            <LogOut size={18} />
-            <span>{t('nav.signout')}</span>
-          </button>
-        </div>
+    <div className="h-screen bg-bg-primary text-text-primary flex overflow-hidden">
+      <aside className="hidden lg:flex w-sidebar bg-bg-surface border-r border-border-subtle flex-col shrink-0 h-screen">
+        <Body />
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-grow flex flex-col min-w-0">
-        {/* Topbar (64px) */}
-        <header className="h-navbar bg-bg-surface border-b border-border-subtle px-8 flex items-center justify-between shrink-0">
-          <h2 className="text-lg font-bold text-text-primary">
-            {location.pathname === '/provider/dashboard' && 'Employer Overview'}
-            {location.pathname === '/provider/jobs/new' && t('nav.post_job')}
-            {location.pathname === '/provider/jobs' && 'My Job Listings'}
-            {location.pathname.includes('/applicants') && 'Applicants Management Pipeline'}
-          </h2>
+      {mobileOpen && (
+        <>
+          <div className="lg:hidden fixed inset-0 z-40 bg-brand-deep/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="lg:hidden fixed left-0 top-0 bottom-0 z-50 w-sidebar bg-bg-surface border-r border-border-subtle flex flex-col shadow-lift">
+            <Body />
+          </aside>
+        </>
+      )}
 
-          <div className="flex items-center gap-4">
+      <div className="flex-1 flex flex-col min-w-0 h-screen">
+        <header className="h-navbar bg-bg-surface border-b border-border-subtle px-5 sm:px-8 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              className="lg:hidden p-2 -ml-2 rounded-btn text-text-primary hover:bg-bg-elevated"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu size={20} />
+            </button>
+            <h2 className="text-lg font-bold text-text-primary truncate">{title}</h2>
+          </div>
+          <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <div className="h-8 w-8 rounded-full bg-brand-green/20 border border-brand-green/40 flex items-center justify-center text-sm font-bold text-brand-green">
-              EP
+            <div className="w-9 h-9 rounded-full bg-brand-deep text-text-inverse grid place-items-center text-xs font-bold">
+              {(user?.name || 'EM').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')}
             </div>
           </div>
         </header>
 
-        {/* Dynamic Pages Container */}
-        <main className="flex-grow p-8 overflow-y-auto">
+        <main className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-8">
           <Outlet />
         </main>
       </div>

@@ -55,19 +55,28 @@ const Analytics = () => {
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <Card className="flex flex-col gap-2">
-          <span className="text-text-muted text-xs font-semibold uppercase">Platform Match Accuracy</span>
+          <span className="text-text-muted text-xs font-semibold uppercase">Average Match Score</span>
           <span className="text-2xl font-extrabold text-brand-green flex items-center gap-1.5 mt-1">
-            <Sparkles size={22} /> 94.2%
+            <Sparkles size={22} />
+            {summary.avgMatchScore === null || summary.avgMatchScore === undefined
+              ? '—'
+              : `${summary.avgMatchScore}%`}
           </span>
-          <span className="text-xs text-text-muted">Based on candidate-employer engagement.</span>
+          <span className="text-xs text-text-muted">
+            {summary.avgMatchSampleSize > 0
+              ? `Mean score across ${summary.avgMatchSampleSize} scored application${summary.avgMatchSampleSize === 1 ? '' : 's'}.`
+              : 'No scored applications yet.'}
+          </span>
         </Card>
 
         <Card className="flex flex-col gap-2">
           <span className="text-text-muted text-xs font-semibold uppercase">Average Applications / Job</span>
           <span className="text-2xl font-extrabold text-text-primary mt-1">
-            {summary.totalJobs > 0 ? (summary.activeApplications / summary.totalJobs).toFixed(1) : '0.0'}
+            {summary.totalJobs > 0 ? ((summary.totalApplications ?? 0) / summary.totalJobs).toFixed(1) : '0.0'}
           </span>
-          <span className="text-xs text-text-muted">Mean volume across all open postings.</span>
+          <span className="text-xs text-text-muted">
+            {summary.totalApplications ?? 0} applications across {summary.totalJobs} postings.
+          </span>
         </Card>
 
         <Card className="flex flex-col gap-2">
@@ -91,9 +100,9 @@ const Analytics = () => {
           <div className="h-[220px] bg-bg-primary/50 rounded-card border border-border-subtle p-4 relative">
             <svg viewBox="0 0 500 200" className="w-full h-full">
               {/* Grid Lines */}
-              <line x1="40" y1="40" x2="460" y2="40" stroke="#2A2A2A" strokeWidth="1" strokeDasharray="4" />
-              <line x1="40" y1="100" x2="460" y2="100" stroke="#2A2A2A" strokeWidth="1" strokeDasharray="4" />
-              <line x1="40" y1="160" x2="460" y2="160" stroke="#2A2A2A" strokeWidth="2" />
+              <line x1="40" y1="40" x2="460" y2="40" stroke="#E7E4DB" strokeWidth="1" strokeDasharray="4" />
+              <line x1="40" y1="100" x2="460" y2="100" stroke="#E7E4DB" strokeWidth="1" strokeDasharray="4" />
+              <line x1="40" y1="160" x2="460" y2="160" stroke="#E7E4DB" strokeWidth="2" />
               
               {/* Line Area fill */}
               <path
@@ -116,11 +125,11 @@ const Analytics = () => {
                 const y = 160 - (d.count / maxUserCount) * 120;
                 return (
                   <g key={idx}>
-                    <circle cx={x} cy={y} r="5" fill="#00C27C" stroke="#161616" strokeWidth="2" />
-                    <text x={x} y={y - 10} textAnchor="middle" fill="#A0A0A0" fontSize="9" fontWeight="bold">
+                    <circle cx={x} cy={y} r="5" fill="#00C27C" stroke="#FFFFFF" strokeWidth="2" />
+                    <text x={x} y={y - 10} textAnchor="middle" fill="#4A5A52" fontSize="9" fontWeight="bold">
                       {d.count}
                     </text>
-                    <text x={x} y="180" textAnchor="middle" fill="#606060" fontSize="9">
+                    <text x={x} y="180" textAnchor="middle" fill="#6B7A73" fontSize="9">
                       {d.month}
                     </text>
                   </g>
@@ -147,9 +156,9 @@ const Analytics = () => {
           <div className="h-[220px] bg-bg-primary/50 rounded-card border border-border-subtle p-4 relative">
             <svg viewBox="0 0 500 200" className="w-full h-full">
               {/* Grid Lines */}
-              <line x1="40" y1="40" x2="460" y2="40" stroke="#2A2A2A" strokeWidth="1" strokeDasharray="4" />
-              <line x1="40" y1="100" x2="460" y2="100" stroke="#2A2A2A" strokeWidth="1" strokeDasharray="4" />
-              <line x1="40" y1="160" x2="460" y2="160" stroke="#2A2A2A" strokeWidth="2" />
+              <line x1="40" y1="40" x2="460" y2="40" stroke="#E7E4DB" strokeWidth="1" strokeDasharray="4" />
+              <line x1="40" y1="100" x2="460" y2="100" stroke="#E7E4DB" strokeWidth="1" strokeDasharray="4" />
+              <line x1="40" y1="160" x2="460" y2="160" stroke="#E7E4DB" strokeWidth="2" />
 
               {/* Bars */}
               {charts.jobsGrowth.map((d, idx) => {
@@ -168,10 +177,10 @@ const Analytics = () => {
                       opacity="0.8"
                       className="hover:opacity-100 transition-opacity"
                     />
-                    <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#A0A0A0" fontSize="9" fontWeight="bold">
+                    <text x={x + barWidth / 2} y={y - 8} textAnchor="middle" fill="#4A5A52" fontSize="9" fontWeight="bold">
                       {d.count}
                     </text>
-                    <text x={x + barWidth / 2} y="180" textAnchor="middle" fill="#606060" fontSize="9">
+                    <text x={x + barWidth / 2} y="180" textAnchor="middle" fill="#6B7A73" fontSize="9">
                       {d.month}
                     </text>
                   </g>

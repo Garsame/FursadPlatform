@@ -1,6 +1,7 @@
 const Job = require('../models/Job');
 const Company = require('../models/Company');
 const JobseekerProfile = require('../models/JobseekerProfile');
+const Application = require('../models/Application');
 const aiService = require('../services/aiService');
 const { rankCandidatesForJob } = require('../services/matchingService');
 const { JOB_STATUS } = require('../../../shared/constants');
@@ -256,11 +257,15 @@ const getCandidatesRankedForJob = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to view candidates for this job' });
     }
 
-    // Fetch all jobseeker profiles
-    const profiles = await JobseekerProfile.find().populate('user', 'name email phone preferredLanguage');
+    // Only candidates who actually applied to this job — employers do not get
+    // to browse the whole talent pool.
+    const applications = await Application.find({ job: job._id }).select('jobseeker');
+    const profiles = await JobseekerProfile
+      .find({ user: { $in: applications.map((a) => a.jobseeker) } })
+      .populate('user', 'name email phone preferredLanguage');
 
     // Rank profiles
-    const rankedCandidates = rankCandidatesForJob(job, profiles);
+    const rankedCandidates = await rankCandidatesForJob(job, profiles);
 
     return res.status(200).json({
       success: true,

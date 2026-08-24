@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import Card from '../../components/ui/Card';
@@ -17,6 +17,14 @@ const Verify = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,16 +60,29 @@ const Verify = () => {
     }
   };
 
+  // Server-side this endpoint is rate limited to a handful of sends per window.
+  // The countdown keeps an ordinary user from spending that budget by reflex
+  // and hitting a 429 they did nothing to deserve.
   const handleResend = async () => {
+    if (cooldown > 0 || resending) return;
+
     setError('');
     setSuccess('');
+    setResending(true);
+
     try {
-      // Trigger new login attempt with dummy credentials or endpoint to send OTP
-      // For simplicity, we can tell the user they can trigger it by attempting login again
-      // Or we can add a quick mock response or simple message.
-      setSuccess('A new verification code has been generated. Check your console logs.');
+      const res = await api.post('/auth/resend-otp', { email });
+      setSuccess(res.data?.message || t('auth.otp_resent'));
+      setCooldown(60);
     } catch (err) {
-      setError('Failed to resend code');
+      if (err.response?.status === 429) {
+        setError(err.response.data?.message || 'Too many requests. Please wait a few minutes.');
+        setCooldown(120);
+      } else {
+        setError(err.response?.data?.message || 'Failed to resend the code. Please try again.');
+      }
+    } finally {
+      setResending(false);
     }
   };
 
@@ -109,10 +130,22 @@ const Verify = () => {
         <div className="text-center mt-6 text-sm text-text-secondary">
           <button
             onClick={handleResend}
-            className="text-brand-green hover:underline font-semibold"
+            disabled={resending || cooldown > 0}
+            className="text-brand-deep hover:underline font-semibold disabled:text-text-muted
+              disabled:no-underline disabled:cursor-not-allowed"
           >
-            {t('auth.otp_resend')}
+            {resending
+              ? t('auth.otp_resending')
+              : cooldown > 0
+                ? t('auth.otp_resend_wait', { seconds: cooldown })
+                : t('auth.otp_resend')}
           </button>
+
+          <p className="mt-4 text-xs text-text-muted">
+            <Link to="/signin" className="hover:text-brand-deep font-medium">
+              {t('auth.back_to_signin')}
+            </Link>
+          </p>
         </div>
       </Card>
     </div>
