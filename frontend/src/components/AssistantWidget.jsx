@@ -1,6 +1,45 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { MessageCircle, X, Send, Sparkles, Loader2 } from 'lucide-react';
 import api from '../services/api';
+
+/**
+ * Renders the assistant's answer, turning [label](/path) into a real link and
+ * **bold** into bold.
+ *
+ * The assistant is told to link to the employer and job pages it mentions, so
+ * those links have to be clickable — a printed path the reader has to retype
+ * is no better than not having answered.
+ *
+ * Only in-app paths become links. An absolute URL is left as plain text, so a
+ * model that ever produced an outside address cannot turn this into a way to
+ * send people off the site.
+ */
+const RichText = ({ text }) => {
+  const parts = String(text).split(/(\[[^\]]+\]\(\/[^)]*\)|\*\*[^*]+\*\*)/g);
+
+  return (
+    <p className="whitespace-pre-line">
+      {parts.map((part, i) => {
+        const link = part.match(/^\[([^\]]+)\]\((\/[^)]*)\)$/);
+        if (link) {
+          return (
+            <Link
+              key={i}
+              to={link[2]}
+              className="font-semibold text-brand-deep underline underline-offset-2 hover:text-brand-hover"
+            >
+              {link[1]}
+            </Link>
+          );
+        }
+        const bold = part.match(/^\*\*([^*]+)\*\*$/);
+        if (bold) return <strong key={i} className="font-semibold">{bold[1]}</strong>;
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+      })}
+    </p>
+  );
+};
 
 const SUGGESTIONS = [
   'How do I apply for a job?',
@@ -105,7 +144,8 @@ const AssistantWidget = () => {
 
           <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={i} onClick={(e) => { if (e.target.closest('a')) setOpen(false); }}
+                   className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] px-3.5 py-2.5 rounded-card text-sm leading-relaxed ${
                   m.role === 'user'
                     ? 'bg-brand-deep text-text-inverse'
@@ -113,7 +153,7 @@ const AssistantWidget = () => {
                       ? 'bg-accent-ochreMuted text-accent-ochreInk border border-accent-ochre/35'
                       : 'bg-bg-elevated text-text-primary border border-border-subtle'
                 }`}>
-                  <p className="whitespace-pre-line">{m.text}</p>
+                  <RichText text={m.text} />
                 </div>
               </div>
             ))}

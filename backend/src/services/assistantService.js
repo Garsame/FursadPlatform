@@ -86,28 +86,68 @@ There is no browsable pool of CVs.
 To contact the Fursad team, use the Contact page on the public site.
 `.trim();
 
-/** Public, already visible on the site. */
+/**
+ * Everything the public site already shows, with the links to reach it.
+ *
+ * The links matter as much as the facts. Without them the assistant knows a
+ * company exists but has nowhere to send anyone, so it falls back to "ask the
+ * team" — which is a deflection, not an answer, when the page it should have
+ * pointed at is right there.
+ */
 const fetchPublicContext = async () => {
-  const [jobs, companies] = await Promise.all([
-    Job.find({ status: 'published' })
-      .select('title location employmentType salaryRange skillsRequired educationLevel experienceLevel')
-      .populate('company', 'name industry')
-      .sort({ publishedAt: -1 })
-      .limit(25),
-    Company.find({ isVerified: true }).select('name industry location').limit(15)
-  ]);
+  const jobs = await Job.find({ status: 'published' })
+    .select('title description location employmentType salaryRange skillsRequired educationLevel experienceLevel publishedAt company')
+    .populate('company', 'name industry')
+    .sort({ publishedAt: -1 })
+    .limit(30);
+
+  // Only employers who are actually hiring — that is exactly what the public
+  // employer wall lists, so it is the honest answer to "who is on Fursad".
+  const hiringIds = [...new Set(jobs.map((j) => String(j.company?._id)).filter(Boolean))];
+  const companies = await Company.find({ _id: { $in: hiringIds } })
+    .select('name tagline description about industry location headquarters companySize foundedYear benefits values website isVerified profileCompleteness');
+
+  const rolesByCompany = jobs.reduce((acc, j) => {
+    const k = String(j.company?._id);
+    (acc[k] = acc[k] || []).push(j.title);
+    return acc;
+  }, {});
 
   return {
+    totalEmployersHiring: companies.length,
+    totalOpenJobs: jobs.length,
+
+    employers: companies.map((c) => ({
+      name: c.name,
+      profileLink: `/companies/${c._id}`,
+      tagline: c.tagline || undefined,
+      whatTheyDo: c.description || undefined,
+      moreAboutThem: c.about ? c.about.slice(0, 400) : undefined,
+      industry: c.industry || undefined,
+      city: c.location?.city || c.headquarters || undefined,
+      size: c.companySize || undefined,
+      founded: c.foundedYear || undefined,
+      benefits: c.benefits?.length ? c.benefits : undefined,
+      values: c.values?.length ? c.values : undefined,
+      website: c.website || undefined,
+      verified: c.isVerified,
+      openRoles: rolesByCompany[String(c._id)] || []
+    })),
+
     openJobs: jobs.map((j) => ({
       title: j.title,
+      jobLink: `/jobs/${j._id}`,
       company: j.company?.name,
+      companyLink: j.company?._id ? `/companies/${j.company._id}` : undefined,
       industry: j.company?.industry,
       city: j.location?.city,
       type: j.employmentType,
-      salary: j.salaryRange?.max ? `$${j.salaryRange.min}-${j.salaryRange.max}/month` : 'not stated',
-      skills: (j.skillsRequired || []).slice(0, 6)
-    })),
-    employers: companies.map((c) => ({ name: c.name, industry: c.industry, city: c.location?.city }))
+      salary: j.salaryRange?.max ? `$${j.salaryRange.min}-${j.salaryRange.max} per month` : 'not stated',
+      skills: (j.skillsRequired || []).slice(0, 8),
+      education: j.educationLevel || undefined,
+      experience: j.experienceLevel || undefined,
+      summary: (j.description || '').slice(0, 220)
+    }))
   };
 };
 
@@ -136,26 +176,60 @@ const buildPrompt = (question, publicCtx, ownCtx) => `
 You are the Fursad assistant, helping visitors and jobseekers use the platform.
 
 RULES
-- Answer only from the information below. If it is not here, say you do not
-  have it and suggest the Contact page. Never guess or invent a job, employer,
-  salary or figure.
+- Answer from the information below, and answer it fully. Never guess or
+  invent a job, employer, salary or figure.
+
+- SEND THEM SOMEWHERE. Every employer below has a profileLink and every job a
+  jobLink. When you mention one, give the link so they can go and read it.
+  Write links as markdown, for example [Iftin Digital](/companies/abc123).
+  Naming something without linking to it leaves the person exactly where they
+  started.
+
+- The Contact page is a LAST RESORT, not a sign-off. Only mention it when the
+  question is genuinely outside everything below — a complaint, a partnership,
+  a bug, a billing question. Never end an answer with it out of habit, and
+  never suggest it for something a page on this site already answers. If you
+  find yourself about to write "visit the Contact page" for a question about
+  jobs, employers, applying or matching, you have not looked hard enough at
+  the data above.
+
+- If you genuinely lack a figure, say what you DO have and point at the page
+  that shows it. "There are 2 employers hiring right now" is a real answer;
+  "I don't have access to that" when the number is in front of you is not.
+
 - You have no access to administration, moderation, other users, or platform
   internals. If asked, say so plainly and offer what you can help with instead.
+  That refusal is the one place a deflection is correct.
+
 - Never claim to perform an action. You cannot apply on someone's behalf, edit
   a profile, or message an employer. Tell them where to do it themselves.
-- Be brief: two or three short paragraphs at most, plainer language over
+
+- Be brief and concrete: two or three short paragraphs, plain language over
   jargon. Somali or English, matching the question.
+
 - You are talking to a jobseeker or a visitor, never an employer's private
   data and never an administrator.
 
 HOW FURSAD WORKS
 ${PLATFORM_FACTS}
 
-CURRENTLY OPEN JOBS (public)
+EMPLOYERS HIRING RIGHT NOW — ${publicCtx.totalEmployersHiring} of them, all public
+Each has a profileLink. Use it whenever you mention them.
+${JSON.stringify(publicCtx.employers)}
+
+CURRENTLY OPEN JOBS — ${publicCtx.totalOpenJobs} of them, all public
+Each has a jobLink and a companyLink.
 ${JSON.stringify(publicCtx.openJobs)}
 
-EMPLOYERS HIRING (public)
-${JSON.stringify(publicCtx.employers)}
+Pages you can send people to:
+  /jobs                browse every open vacancy
+  /companies/:id       an employer's full public profile
+  /jobs/:id            one vacancy in full
+  /signup              create a jobseeker account
+  /dashboard/cvs       upload and manage CVs (signed in)
+  /dashboard/jobs      AI-matched jobs with score breakdowns (signed in)
+  /provider/signup     register as an employer
+  /contact             reach the Fursad team — last resort only
 
 ${ownCtx ? `THE PERSON ASKING — their own record, they are signed in
 ${JSON.stringify(ownCtx)}
