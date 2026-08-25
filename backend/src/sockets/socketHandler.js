@@ -3,6 +3,8 @@ const User = require('../models/User');
 const Application = require('../models/Application');
 const Message = require('../models/Message');
 const { JWT_SECRET } = require('../config/secrets');
+const notificationService = require('../services/notificationService');
+const Job = require('../models/Job');
 
 /**
  * How much of the conversation is open, from the application's own record.
@@ -152,12 +154,19 @@ const socketHandler = (io) => {
         // Broadcast message to application conversation room
         io.to(roomName).emit('newMessage', message);
 
-        // Also push notifications to recipient personal room
-        io.to(`user:${recipientId}`).emit('notification', {
+        // A stored notification rather than a transient event: the person it
+        // is for is usually not connected at the moment it is sent, and an
+        // event nobody is listening to simply disappears.
+        const forEmployer = isJobseeker;
+        await notificationService.notify({
+          recipient: recipientId,
           type: 'new_message',
           title: `New message from ${socket.user.name}`,
-          content: content.slice(0, 50),
-          applicationId
+          body: content.trim().slice(0, 140),
+          link: forEmployer
+            ? `/provider/messages?job=${application.job._id}&application=${applicationId}`
+            : `/dashboard/messages?application=${applicationId}`,
+          meta: { applicationId, jobId: application.job._id, actorId: socket.user._id }
         });
       } catch (error) {
         console.error('Socket sendMessage error:', error.message);
@@ -187,11 +196,13 @@ const socketHandler = (io) => {
         io.to(`application:${applicationId}`).emit('conversationState', state);
 
         // The candidate may not have the thread open — tell them anyway.
-        io.to(`user:${application.jobseeker}`).emit('notification', {
+        await notificationService.notify({
+          recipient: application.jobseeker,
           type: 'chat_accepted',
           title: `${socket.user.name} accepted your message`,
-          content: 'You can now continue the conversation.',
-          applicationId
+          body: 'You can carry on the conversation now.',
+          link: `/dashboard/messages?application=${applicationId}`,
+          meta: { applicationId, jobId: application.job?._id, actorId: socket.user._id }
         });
       } catch (error) {
         console.error('Socket acceptConversation error:', error.message);

@@ -5,6 +5,7 @@ const Application = require('../models/Application');
 const aiService = require('../services/aiService');
 const { rankCandidatesForJob } = require('../services/matchingService');
 const { JOB_STATUS } = require('../../../shared/constants');
+const notificationService = require('../services/notificationService');
 
 // @desc    List all published jobs (Public)
 // @route   GET /api/jobs
@@ -198,6 +199,8 @@ const updateJob = async (req, res) => {
     if (experienceLevel !== undefined) job.experienceLevel = experienceLevel;
     if (employmentType !== undefined) job.employmentType = employmentType;
 
+    const previousStatus = job.status;
+
     if (status !== undefined) {
       if (status === JOB_STATUS.PUBLISHED) {
         // Re-screen and queue. Employers may ask to go live; only an
@@ -234,6 +237,15 @@ const updateJob = async (req, res) => {
     }
 
     await job.save();
+
+    // An employer closing their own vacancy is still news to everyone waiting
+    // on it, so the same notice goes out as when an administrator closes one.
+    if (status === JOB_STATUS.CLOSED && previousStatus !== JOB_STATUS.CLOSED) {
+      const owner = await Company.findById(job.company).select('name');
+      await notificationService.jobClosedForApplicants({
+        job, companyName: owner?.name || 'The employer'
+      });
+    }
 
     const messages = {
       [JOB_STATUS.PENDING_REVIEW]: 'Sent for review. It will go live once an administrator approves it.',

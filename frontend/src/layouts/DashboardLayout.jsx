@@ -8,6 +8,7 @@ import {
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import Logo from '../components/Logo';
 import api from '../services/api';
+import NotificationBell from '../components/NotificationBell';
 
 const DashboardLayout = () => {
   const { t } = useTranslation();
@@ -135,6 +136,7 @@ const DashboardLayout = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <LanguageSwitcher />
             <Avatar user={user} />
           </div>

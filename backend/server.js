@@ -7,6 +7,7 @@ const connectDB = require('./src/config/db');
 const routes = require('./src/routes');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const socketHandler = require('./src/sockets/socketHandler');
+const { setIo } = require('./src/sockets/registry');
 
 const app = express();
 const server = http.createServer(app);
@@ -79,7 +80,9 @@ app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the Fursad Platform API' });
 });
 
-// Initialize Socket.IO handlers
+// Initialize Socket.IO handlers. The registry lets controllers push events
+// without threading `io` through every call signature.
+setIo(io);
 socketHandler(io);
 
 // Global Error Handler Middleware

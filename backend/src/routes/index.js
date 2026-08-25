@@ -9,6 +9,7 @@ const adminRoutes = require('./adminRoutes');
 const cvRoutes = require('./cvRoutes');
 const contactRoutes = require('./contactRoutes');
 const companyRoutes = require('./companyRoutes');
+const notificationRoutes = require('./notificationRoutes');
 
 router.use('/auth', authRoutes);
 router.use('/profile', profileRoutes);
@@ -18,5 +19,6 @@ router.use('/admin', adminRoutes);
 router.use('/cvs', cvRoutes);
 router.use('/contact', contactRoutes);
 router.use('/companies', companyRoutes);
+router.use('/notifications', notificationRoutes);
 
 module.exports = router;

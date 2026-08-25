@@ -9,8 +9,12 @@ const api = axios.create({
   }
 });
 
-// Helper to determine which token key to retrieve based on current window route
-const getActiveToken = () => {
+/**
+ * Which portal's token applies right now, decided by the path.
+ * Exported because the notification socket needs the raw value — it
+ * authenticates on connect rather than through the axios interceptor.
+ */
+export const getPortalToken = () => {
   const path = window.location.pathname;
   if (path.startsWith('/admin')) {
     return localStorage.getItem('fursad_admin_token');
@@ -24,7 +28,7 @@ const getActiveToken = () => {
 // Request interceptor to dynamically inject the active role's JWT token
 api.interceptors.request.use(
   (config) => {
-    const token = getActiveToken();
+    const token = getPortalToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

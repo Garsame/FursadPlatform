@@ -5,6 +5,7 @@ const AuditLog = require('../models/AuditLog');
 const Company = require('../models/Company');
 const CV = require('../models/CV');
 const emailService = require('../services/emailService');
+const notificationService = require('../services/notificationService');
 const JobseekerProfile = require('../models/JobseekerProfile');
 const Message = require('../models/Message');
 const path = require('path');
@@ -507,12 +508,30 @@ const setJobStatus = async (req, res) => {
       emailed = !!result?.sent;
     }
 
-    return res.status(200).json({
+    await notificationService.jobDecision({ job, status, note: note || '' });
+
+    // Candidates lose a live vacancy either way, so tell the people who applied.
+    if (status === JOB_STATUS.CLOSED || status === JOB_STATUS.FLAGGED) {
+      await notificationService.jobClosedForApplicants({
+        job, companyName: job.company?.name || 'The employer'
+      });
+    }
+
+    const response = res.status(200).json({
       success: true,
       message: `Job set to ${status}.${emailed ? ' The employer has been emailed.' : ''}`,
       emailed,
       data: job
     });
+
+    // Fan-out runs after the reply is sent. Scoring one vacancy against every
+    // candidate is instant today and must never become the reason an
+    // administrator waits on a button.
+    if (status === JOB_STATUS.PUBLISHED) {
+      setImmediate(() => notificationService.announcePublishedJob(job._id));
+    }
+
+    return response;
   } catch (error) {
     console.error('Admin Set Job Status Error:', error.message);
     return res.status(500).json({ success: false, message: error.message });

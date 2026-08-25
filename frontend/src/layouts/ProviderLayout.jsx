@@ -6,6 +6,7 @@ import {
   LayoutDashboard, PlusCircle, Briefcase, Building2, LogOut, Menu, MessageSquare,
 } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import NotificationBell from '../components/NotificationBell';
 import Logo from '../components/Logo';
 import api from '../services/api';
 
@@ -118,6 +119,7 @@ const ProviderLayout = () => {
             <h2 className="text-lg font-bold text-text-primary truncate">{title}</h2>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <LanguageSwitcher />
             <div className="w-9 h-9 rounded-full bg-brand-deep text-text-inverse grid place-items-center text-xs font-bold">
               {(user?.name || 'EM').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')}

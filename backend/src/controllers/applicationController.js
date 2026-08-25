@@ -7,6 +7,8 @@ const CV = require('../models/CV');
 const { calculateMatchScore } = require('../services/matchingService');
 const aiService = require('../services/aiService');
 const emailService = require('../services/emailService');
+const notificationService = require('../services/notificationService');
+const Company = require('../models/Company');
 const { APPLICATION_STATUS } = require('../../../shared/constants');
 
 // @desc    Apply to a job listing
@@ -86,6 +88,10 @@ const applyToJob = async (req, res) => {
           note: 'Initial application submitted.'
         }
       ]
+    });
+
+    await notificationService.newApplication({
+      application, job, candidateName: req.user.name
     });
 
     return res.status(201).json({
@@ -407,6 +413,16 @@ const updateApplicationStatus = async (req, res) => {
       status,
       msg
     );
+
+    // The candidate knows the employer by their company, not by the name of
+    // whoever happens to be operating the account.
+    const employerCompany = await Company.findById(application.job.company).select('name');
+
+    await notificationService.applicationStatusChanged({
+      application,
+      job: application.job,
+      companyName: employerCompany?.name || req.user.name
+    });
 
     // Record automated message in database log
     await Message.create({

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { Briefcase, LayoutDashboard, Users, ShieldCheck, BarChart3, History, LogOut } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import NotificationBell from '../components/NotificationBell';
 
 const AdminLayout = () => {
   const { t } = useTranslation();
@@ -93,6 +94,7 @@ const AdminLayout = () => {
           </h2>
 
           <div className="flex items-center gap-4">
+            <NotificationBell />
             <LanguageSwitcher />
             <div className="h-8 w-8 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-sm font-bold text-red-500">
               AD
