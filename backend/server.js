@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const helmet = require('helmet');
 const connectDB = require('./src/config/db');
 const routes = require('./src/routes');
 const { errorHandler } = require('./src/middleware/errorHandler');
@@ -56,6 +57,41 @@ const io = new Server(server, {
 
 // Connect Database
 connectDB();
+
+/**
+ * Response headers that tell the browser to enforce a few defences for us.
+ *
+ * Without these the browser applies its weakest defaults: a page can be framed
+ * by any site (clickjacking), a mistyped content type can be sniffed and
+ * executed, and the full URL of a page leaks to every third party the page
+ * talks to. None of this shows up in testing, which is exactly why it gets
+ * left out.
+ *
+ * The default cross-origin resource policy is relaxed to same-site because
+ * avatars and company logos are served from this origin and rendered on the
+ * frontend's, which is a different port in development.
+ */
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'same-site' },
+  // The API serves JSON and files, never HTML, so a content security policy
+  // here would constrain nothing. The frontend is served by Vite in
+  // development and by a static host in production; its CSP belongs there.
+  contentSecurityPolicy: false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+
+/**
+ * Rate limiting counts requests per client address. Behind a proxy or load
+ * balancer every request arrives from the proxy, so without this the whole
+ * internet shares one bucket and the limits protect nothing — or lock everyone
+ * out at once. The hop count is configurable because trusting blindly lets a
+ * client forge X-Forwarded-For and dodge the limits entirely.
+ */
+const TRUST_PROXY = process.env.TRUST_PROXY;
+if (TRUST_PROXY) {
+  app.set('trust proxy', /^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY);
+  console.log(`Trusting proxy: ${TRUST_PROXY}`);
+}
 
 // Middlewares
 app.use(cors(corsOptions));

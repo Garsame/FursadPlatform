@@ -51,6 +51,41 @@ const embedTexts = async (texts) => {
 };
 
 /**
+ * Calls the model, retrying the failures that are worth retrying.
+ *
+ * Gemini answers 503 "high demand" and 429 under load, and both clear in a
+ * second or two. Without a retry a single blip drops the caller straight to
+ * its fallback — a recruiter pressing "Rank applicants" got canned text
+ * instead of reasoning, and nothing told them to simply try again.
+ *
+ * Only transient statuses are retried. A bad key or a malformed prompt fails
+ * the same way twice, so retrying those just makes the user wait longer.
+ */
+const TRANSIENT = /(^|[^0-9])(429|500|502|503|504)([^0-9]|$)|overloaded|high demand|unavailable|too many requests|resource exhausted|internal server error|fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND/i;
+
+const generate = async (prompt, { attempts = 3 } = {}) => {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      // The model, not this function. Calling generate() here recurses until
+      // the stack dies, and takes every AI feature down with it.
+      return await model.generateContent(prompt);
+    } catch (error) {
+      lastError = error;
+      if (!TRANSIENT.test(error.message) || i === attempts - 1) throw error;
+      console.warn(`[ai] transient failure, retrying (${i + 2}/${attempts}): ${error.message.slice(0, 90)}`);
+      // 400ms, then 1200ms. Long enough for a spike to pass, short enough
+      // that nobody is left staring at a button.
+      await new Promise((r) => setTimeout(r, 400 * Math.pow(3, i)));
+    }
+  }
+  throw lastError;
+};
+
+/** True when a failure was the service being busy rather than our request. */
+const isTransient = (error) => TRANSIENT.test(error?.message || '');
+
+/**
  * 1. Parse Resume
  * Extracts profile fields from CV text or questionnaire answers.
  */
@@ -122,7 +157,7 @@ const parseResume = async (rawText, language = 'en') => {
       "${rawText}"
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     return normaliseParsedResume(parseJson(result.response.text()));
   } catch (error) {
     console.error('AI Parse Resume Error:', error.message);
@@ -243,7 +278,7 @@ const reviewJobPost = async (jobData) => {
       }
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const out = parseJson(result.response.text());
 
     // The publish gate is fraud, not polish. A legitimate-but-thin post goes
@@ -295,7 +330,7 @@ const generateJobDescription = async (answers, language = 'en') => {
       }
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const responseText = result.response.text();
     const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson);
@@ -325,7 +360,7 @@ const generateCandidateSummary = async (profile, job, matchResult) => {
       Return ONLY a plain text string summary.
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     return result.response.text().trim();
   } catch (error) {
     console.error('AI Generate Candidate Summary Error:', error.message);
@@ -364,7 +399,7 @@ const generateInterviewQuestions = async (job, audience = 'candidate') => {
       }
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const responseText = result.response.text();
     const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson);
@@ -397,7 +432,7 @@ const generateStatusUpdateMessage = async (status, jobTitle, language = 'en') =>
       Return ONLY a plain text string. No other characters.
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     return result.response.text().trim();
   } catch (error) {
     console.error('AI Generate Status Update Message Error:', error.message);
@@ -453,7 +488,7 @@ const nextProfileQuestion = async (context, history = []) => {
       { "question": "your question", "field": "${remaining[0].field}" }
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const out = parseJson(result.response.text());
     return { done: false, question: out.question || fallback.question, field: remaining[0].field };
   } catch (error) {
@@ -497,7 +532,7 @@ const deriveJobSpecification = async (context, history = [], cvSnapshots = []) =
       }
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     return parseJson(result.response.text());
   } catch (error) {
     console.error('AI Derive Job Specification Error:', error.message);
@@ -581,7 +616,7 @@ const generateCompanyProfile = async (facts) => {
         "reasoning": "one sentence naming which facts you built this from"
       }
     `;
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     return parseJson(result.response.text());
   } catch (error) {
     console.error('AI Generate Company Profile Error:', error.message);
@@ -594,16 +629,26 @@ const generateCompanyProfile = async (facts) => {
  * Deliberately scoped to actual applicants — employers never browse the pool.
  */
 const rankApplicants = async (job, applicants) => {
-  const fallback = {
+  // The reason has to describe what actually happened. Telling a recruiter to
+  // add an API key when the key is present and the service was merely busy
+  // sends them hunting for a problem that is not theirs.
+  const fallback = (reason) => ({
     ranking: applicants.map((a, i) => ({
       applicationId: a.applicationId,
       rank: i + 1,
       verdict: 'consider',
-      reason: 'Ranked by match score. Add a Gemini API key for AI reasoning.'
+      reason
     })),
-    summary: ''
-  };
-  if (!model || !applicants.length) return fallback;
+    summary: '',
+    degraded: true
+  });
+
+  const NO_KEY = 'Ranked by match score. AI reasoning is switched off — no Gemini key is configured.';
+  const BUSY = 'Ranked by match score. The AI was busy just now, so there is no written reasoning — try again in a moment.';
+  const FAILED = 'Ranked by match score. AI reasoning could not be produced for this run.';
+
+  if (!model) return fallback(NO_KEY);
+  if (!applicants.length) return { ranking: [], summary: '' };
 
   try {
     const prompt = `
@@ -635,13 +680,13 @@ const rankApplicants = async (job, applicants) => {
         "summary": "one sentence on the shape of this applicant pool"
       }
     `;
-    const result = await model.generateContent(prompt);
+    const result = await generate(prompt);
     const out = parseJson(result.response.text());
-    if (!Array.isArray(out.ranking)) return fallback;
+    if (!Array.isArray(out.ranking)) return fallback(FAILED);
     return out;
   } catch (error) {
     console.error('AI Rank Applicants Error:', error.message);
-    return fallback;
+    return fallback(isTransient(error) ? BUSY : FAILED);
   }
 };
 
@@ -652,7 +697,7 @@ const rankApplicants = async (job, applicants) => {
  */
 const answerAssistant = async (prompt) => {
   if (!model) return 'The assistant is not available right now.';
-  const result = await model.generateContent(prompt);
+  const result = await generate(prompt);
   return result.response.text().trim();
 };
 
