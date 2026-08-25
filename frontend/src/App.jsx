@@ -48,6 +48,7 @@ import ProviderMyJobs from './pages/provider/MyJobs';
 import ProviderApplicants from './pages/provider/Applicants';
 import ProviderCompany from './pages/provider/Company';
 import ProviderEditJob from './pages/provider/EditJob';
+import ProviderMessages from './pages/provider/Messages';
 
 // Admin Pages
 import AdminLogin from './pages/admin/Login';
@@ -111,6 +112,7 @@ function App() {
                   <Route path="/provider/jobs" element={<ProviderMyJobs />} />
                   <Route path="/provider/jobs/:id/edit" element={<ProviderEditJob />} />
                   <Route path="/provider/jobs/:id/applicants" element={<ProviderApplicants />} />
+                  <Route path="/provider/messages" element={<ProviderMessages />} />
                   <Route path="/provider/company" element={<ProviderCompany />} />
                 </Route>
               </Route>

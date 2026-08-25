@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useProviderAuth } from '../context/ProviderAuthContext';
 import {
-  LayoutDashboard, PlusCircle, Briefcase, Building2, LogOut, Menu,
+  LayoutDashboard, PlusCircle, Briefcase, Building2, LogOut, Menu, MessageSquare,
 } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import Logo from '../components/Logo';
+import api from '../services/api';
 
 const ProviderLayout = () => {
   const { t } = useTranslation();
@@ -14,6 +15,17 @@ const ProviderLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+
+  // Unread count for the sidebar badge, refreshed on navigation so opening a
+  // conversation clears it without a reload.
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/applications/employer/threads')
+      .then((res) => { if (!cancelled && res.data?.success) setUnread(res.data.unreadTotal || 0); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [location.pathname]);
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -21,6 +33,7 @@ const ProviderLayout = () => {
     { path: '/provider/dashboard', label: t('nav.dashboard'),   icon: LayoutDashboard },
     { path: '/provider/jobs/new',  label: t('nav.post_job'),    icon: PlusCircle },
     { path: '/provider/jobs',      label: t('provider.my_jobs'), icon: Briefcase },
+    { path: '/provider/messages',  label: 'Job Messages',       icon: MessageSquare, badge: unread },
     { path: '/provider/company',   label: t('provider.company'), icon: Building2 },
   ];
 
@@ -49,7 +62,13 @@ const ProviderLayout = () => {
               }`}
             >
               <Icon size={18} className={isActive ? 'text-brand-green' : ''} />
-              <span>{item.label}</span>
+              <span className="flex-1">{item.label}</span>
+              {item.badge > 0 && (
+                <span className="min-w-[20px] h-5 px-1.5 grid place-items-center rounded-pill
+                  bg-brand-green text-brand-ink text-[11px] font-bold">
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}

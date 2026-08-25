@@ -209,6 +209,116 @@ const getMyThreads = async (req, res) => {
   }
 };
 
+// @desc    The employer's conversations, grouped by the job they belong to
+// @route   GET /api/applications/employer/threads
+// @access  Private (Employer only)
+const getEmployerThreads = async (req, res) => {
+  try {
+    const jobs = await Job.find({ postedBy: req.user._id })
+      .select('title status location employmentType createdAt')
+      .sort({ createdAt: -1 });
+
+    const jobIds = jobs.map((j) => j._id);
+
+    const applications = await Application.find({ job: { $in: jobIds } })
+      .populate('jobseeker', 'name avatarUrl city')
+      .sort({ matchScore: -1 });
+
+    const appIds = applications.map((a) => a._id);
+
+    const [lastMessages, unreadCounts, seekerCounts] = await Promise.all([
+      Message.aggregate([
+        { $match: { application: { $in: appIds } } },
+        { $sort: { createdAt: 1 } },
+        {
+          $group: {
+            _id: '$application',
+            content: { $last: '$content' },
+            createdAt: { $last: '$createdAt' },
+            sender: { $last: '$sender' }
+          }
+        }
+      ]),
+      Message.aggregate([
+        { $match: { application: { $in: appIds }, recipient: req.user._id, isRead: false } },
+        { $group: { _id: '$application', n: { $sum: 1 } } }
+      ]),
+      // The candidate's own typed messages — what the one-opener gate counts.
+      Message.aggregate([
+        { $match: { application: { $in: appIds }, isAutomated: false, sender: { $ne: req.user._id } } },
+        { $group: { _id: '$application', n: { $sum: 1 } } }
+      ])
+    ]);
+
+    const lastBy = new Map(lastMessages.map((m) => [String(m._id), m]));
+    const unreadBy = new Map(unreadCounts.map((u) => [String(u._id), u.n]));
+    const seekerBy = new Map(seekerCounts.map((s) => [String(s._id), s.n]));
+
+    const threadsByJob = new Map(jobIds.map((id) => [String(id), []]));
+
+    for (const a of applications) {
+      const last = lastBy.get(String(a._id));
+      const accepted = !!a.messaging?.acceptedAt;
+
+      threadsByJob.get(String(a.job))?.push({
+        applicationId: a._id,
+        candidateId: a.jobseeker?._id,
+        candidateName: a.jobseeker?.name || 'Unknown',
+        candidateCity: a.jobseeker?.city || '',
+        avatarUrl: a.jobseeker?.avatarUrl || '',
+        status: a.status,
+        matchScore: a.matchScore,
+        messagingAccepted: accepted,
+        awaitingAcceptance: !accepted && (seekerBy.get(String(a._id)) || 0) > 0,
+        unreadCount: unreadBy.get(String(a._id)) || 0,
+        lastMessage: last
+          ? {
+              content: last.content,
+              createdAt: last.createdAt,
+              fromMe: String(last.sender) === String(req.user._id)
+            }
+          : null
+      });
+    }
+
+    const data = jobs.map((j) => {
+      const threads = (threadsByJob.get(String(j._id)) || []).sort((a, b) => {
+        // Conversations first, newest activity at the top, then everyone else
+        // by how well they match.
+        if (!!a.lastMessage !== !!b.lastMessage) return a.lastMessage ? -1 : 1;
+        if (a.lastMessage && b.lastMessage) {
+          return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
+        }
+        return b.matchScore - a.matchScore;
+      });
+
+      return {
+        jobId: j._id,
+        title: j.title,
+        status: j.status,
+        city: j.location?.city || '',
+        employmentType: j.employmentType,
+        applicantCount: threads.length,
+        conversationCount: threads.filter((t) => t.lastMessage).length,
+        awaitingAcceptance: threads.filter((t) => t.awaitingAcceptance).length,
+        unreadCount: threads.reduce((sum, t) => sum + t.unreadCount, 0),
+        threads
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: data.length,
+      unreadTotal: data.reduce((sum, j) => sum + j.unreadCount, 0),
+      awaitingTotal: data.reduce((sum, j) => sum + j.awaitingAcceptance, 0),
+      data
+    });
+  } catch (error) {
+    console.error('Get Employer Threads Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get applications for a job (Employer view)
 // @route   GET /api/applications/job/:id
 // @access  Private (Employer only)
@@ -425,6 +535,7 @@ module.exports = {
   applyToJob,
   getMyApplications,
   getMyThreads,
+  getEmployerThreads,
   getJobApplications,
   updateApplicationStatus,
   sendInterviewPrep,
