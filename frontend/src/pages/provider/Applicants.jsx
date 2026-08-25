@@ -398,6 +398,59 @@ const Applicants = () => {
           className="max-w-2xl"
         >
           <div className="flex flex-col gap-6 text-sm text-text-secondary leading-relaxed">
+            {/* Where the score came from, and whether it still matches what
+                is shown below it. Without this an employer sees a full profile
+                beside a low score and cannot tell why they disagree. */}
+            {selectedApp.scoreBasis && (
+              <div className={`rounded-input p-3.5 border ${
+                selectedApp.scoreBasis.stale
+                  ? 'bg-accent-ochreMuted border-accent-ochre/40'
+                  : 'bg-bg-elevated border-border-subtle'
+              }`}>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <span className="text-xs font-bold text-text-primary">
+                    {selectedApp.matchScore}% match
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    scored from{' '}
+                    <strong className="text-text-primary">
+                      {selectedApp.scoreBasis.source === 'cv'
+                        ? `the CV they sent${selectedApp.scoreBasis.cvLabel ? ` (${selectedApp.scoreBasis.cvLabel})` : ''}`
+                        : 'their profile'}
+                    </strong>
+                    {' '}on {new Date(selectedApp.scoreBasis.scoredAt).toLocaleDateString()}
+                  </span>
+                  {selectedApp.scoreBasis.profileCompleteness !== null && (
+                    <span className="text-xs text-text-muted">
+                      profile now {selectedApp.scoreBasis.profileCompleteness}% complete
+                    </span>
+                  )}
+                </div>
+
+                {selectedApp.matchBreakdown && (
+                  <div className="flex flex-wrap gap-2 mt-2.5">
+                    {Object.entries(selectedApp.matchBreakdown).map(([factor, value]) => (
+                      <span key={factor}
+                            className={`text-[11px] px-2 py-0.5 rounded-pill border capitalize ${
+                              value >= 70 ? 'bg-success/10 text-success border-success/25'
+                                : value > 0 ? 'bg-bg-surface text-text-secondary border-border-subtle'
+                                : 'bg-danger/8 text-danger border-danger/25'}`}>
+                        {factor} {value}%
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {selectedApp.scoreBasis.stale && (
+                  <p className="text-xs text-accent-ochreInk mt-2.5 leading-relaxed">
+                    This candidate has updated their profile since applying, so the score above was
+                    worked out from an earlier, emptier version of what you see below. Judge them on
+                    the profile and CV, not on this number.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Header info */}
             <div className="bg-bg-elevated p-4 rounded-card border border-border-subtle">
               <h4 className="font-bold text-text-primary text-base flex items-center gap-2">
@@ -418,6 +471,9 @@ const Applicants = () => {
                 <BookOpen size={16} className="text-brand-deep" />
                 CVs
               </h5>
+              <p className="text-[11px] text-text-muted mb-2.5">
+                Uploaded by the candidate. The one sent with this application is marked.
+              </p>
               <ApplicantCvPanel
                 userId={selectedApp.jobseeker?._id}
                 submittedCvId={selectedApp.cv?._id || selectedApp.cv}
@@ -430,14 +486,23 @@ const Applicants = () => {
                 <Clipboard size={16} className="text-brand-green" />
                 Submitted Cover Note
               </h5>
-              <div className="bg-bg-primary/50 border border-border-subtle p-4 rounded-card text-xs text-text-secondary leading-relaxed whitespace-pre-line font-mono">
-                {selectedApp.coverNote || 'No cover note submitted.'}
+              <div className="bg-bg-primary/50 border border-border-subtle p-4 rounded-card text-xs
+                text-text-secondary leading-relaxed whitespace-pre-line">
+                {selectedApp.coverNote?.trim()
+                  ? selectedApp.coverNote
+                  : <span className="text-text-muted italic">
+                      This candidate chose not to write one. The cover note is optional and typed
+                      by hand when applying — nothing fills it in automatically.
+                    </span>}
               </div>
             </div>
 
             {/* Skills */}
             <div>
-              <h5 className="font-bold text-text-primary mb-2">Technical Skills</h5>
+              <h5 className="font-bold text-text-primary mb-1">Technical Skills</h5>
+              <p className="text-[11px] text-text-muted mb-2">
+                Read from their CV by AI, plus anything they added themselves.
+              </p>
               <div className="flex flex-wrap gap-2">
                 {selectedApp.jobseekerProfile?.skills?.map((s, i) => <Badge key={i}>{s}</Badge>)}
               </div>

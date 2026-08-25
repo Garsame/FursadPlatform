@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Briefcase } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import Button from '../components/ui/Button';
 import Logo from '../components/Logo';
 import AssistantWidget from '../components/AssistantWidget';
+import { useJobseekerAuth } from '../context/JobseekerAuthContext';
+import { useProviderAuth } from '../context/ProviderAuthContext';
 
 const PublicLayout = () => {
   const { t } = useTranslation();
@@ -13,6 +15,22 @@ const PublicLayout = () => {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  /**
+   * The public header used to render "Sign in" and "Get started" no matter
+   * who was looking at it. A signed-in candidate browsing a job page was
+   * still signed in — their token was intact and applying worked — but the
+   * header said otherwise, which reads as having been logged out.
+   *
+   * `loading` matters: on a hard refresh the token is read from storage
+   * before /auth/me answers, and rendering the signed-out state during that
+   * gap makes the header flicker between the two.
+   */
+  const { user: seeker, isAuthenticated: seekerIn, loading: seekerLoading, logout: seekerOut } = useJobseekerAuth();
+  const { isAuthenticated: providerIn } = useProviderAuth();
+
+  const initials = (seeker?.name || '')
+    .split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || 'ME';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -61,15 +79,49 @@ const PublicLayout = () => {
 
           <div className="hidden md:flex items-center gap-3">
             <LanguageSwitcher />
-            <Link
-              to="/signin"
-              className="text-sm font-semibold text-text-secondary hover:text-brand-deep transition-colors px-2"
-            >
-              {t('nav.signin')}
-            </Link>
-            <Button variant="primary" onClick={() => navigate('/signup')}>
-              {t('nav.get_started')}
-            </Button>
+
+            {seekerLoading ? (
+              // Placeholder of the same width, so nothing jumps once we know.
+              <div className="h-9 w-32 rounded-btn bg-bg-elevated animate-pulse" />
+            ) : seekerIn ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-text-secondary
+                    hover:text-brand-deep transition-colors px-2"
+                >
+                  <LayoutDashboard size={16} /> {t('nav.dashboard')}
+                </Link>
+                <Link to="/dashboard/profile" className="flex items-center gap-2 group" title={seeker?.name}>
+                  <span className="h-9 w-9 rounded-full bg-brand-deep text-text-inverse grid place-items-center
+                    text-xs font-bold group-hover:bg-brand-deepHover transition-colors">
+                    {initials}
+                  </span>
+                </Link>
+                <button
+                  onClick={() => { seekerOut(); navigate('/'); }}
+                  className="text-sm font-medium text-text-muted hover:text-danger transition-colors px-1"
+                >
+                  {t('nav.signout')}
+                </button>
+              </>
+            ) : providerIn ? (
+              <Button variant="secondary" onClick={() => navigate('/provider/dashboard')}>
+                <Briefcase size={16} /> {t('provider.workspace', 'Employer workspace')}
+              </Button>
+            ) : (
+              <>
+                <Link
+                  to="/signin"
+                  className="text-sm font-semibold text-text-secondary hover:text-brand-deep transition-colors px-2"
+                >
+                  {t('nav.signin')}
+                </Link>
+                <Button variant="primary" onClick={() => navigate('/signup')}>
+                  {t('nav.get_started')}
+                </Button>
+              </>
+            )}
           </div>
 
           <button
@@ -99,13 +151,44 @@ const PublicLayout = () => {
             <div className="h-px bg-border-subtle my-3" />
             <div className="flex items-center justify-between gap-3">
               <LanguageSwitcher />
-              <Link to="/signin" className="text-sm font-semibold text-text-secondary">
-                {t('nav.signin')}
-              </Link>
+              {!seekerLoading && !seekerIn && (
+                <Link to="/signin" className="text-sm font-semibold text-text-secondary">
+                  {t('nav.signin')}
+                </Link>
+              )}
             </div>
-            <Button variant="primary" fullWidth className="mt-3" onClick={() => navigate('/signup')}>
-              {t('nav.get_started')}
-            </Button>
+
+            {seekerLoading ? (
+              <div className="h-11 w-full rounded-btn bg-bg-elevated animate-pulse mt-3" />
+            ) : seekerIn ? (
+              <>
+                <div className="flex items-center gap-3 mt-3 px-3 py-2.5 rounded-btn bg-bg-elevated">
+                  <span className="h-9 w-9 rounded-full bg-brand-deep text-text-inverse grid place-items-center
+                    text-xs font-bold shrink-0">{initials}</span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-text-muted leading-none">{t('nav.logged_in_as')}</p>
+                    <p className="text-sm font-semibold truncate text-text-primary mt-1">{seeker?.name}</p>
+                  </div>
+                </div>
+                <Button variant="primary" fullWidth className="mt-3" onClick={() => navigate('/dashboard')}>
+                  <LayoutDashboard size={16} /> {t('nav.dashboard')}
+                </Button>
+                <button
+                  onClick={() => { seekerOut(); navigate('/'); }}
+                  className="w-full text-sm font-medium text-danger mt-3 py-2"
+                >
+                  {t('nav.signout')}
+                </button>
+              </>
+            ) : providerIn ? (
+              <Button variant="secondary" fullWidth className="mt-3" onClick={() => navigate('/provider/dashboard')}>
+                <Briefcase size={16} /> Employer workspace
+              </Button>
+            ) : (
+              <Button variant="primary" fullWidth className="mt-3" onClick={() => navigate('/signup')}>
+                {t('nav.get_started')}
+              </Button>
+            )}
           </div>
         )}
       </header>

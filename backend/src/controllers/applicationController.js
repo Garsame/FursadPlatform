@@ -369,10 +369,35 @@ const getJobApplications = async (req, res) => {
     // Enforce profile attachment for each candidate
     const enrichedApplications = await Promise.all(
       applications.map(async (app) => {
-        const profile = await JobseekerProfile.findOne({ user: app.jobseeker._id }).select('headline bio skills location experience education highestEducationLevel experienceLevel');
+        const profile = await JobseekerProfile.findOne({ user: app.jobseeker._id })
+          .select('headline bio skills location experience education highestEducationLevel experienceLevel languagesSpoken profileCompletenessScore updatedAt');
+
+        /**
+         * Where the score came from, and whether it still describes what the
+         * employer is looking at.
+         *
+         * The match score is frozen when someone applies — deliberately, so it
+         * cannot drift after the fact — but the profile below it keeps
+         * changing. Without saying so, an employer sees a full profile beside
+         * a low score computed when that profile was empty, and has no way to
+         * reconcile the two. Applications made before CVs were required were
+         * scored off the profile alone, which makes the gap wider still.
+         */
+        const scoredFromCv = !!app.cv;
+        const profileMovedOn = profile?.updatedAt && profile.updatedAt > app.createdAt;
+
         return {
           ...app.toObject(),
-          jobseekerProfile: profile
+          jobseekerProfile: profile,
+          scoreBasis: {
+            source: scoredFromCv ? 'cv' : 'profile',
+            cvLabel: scoredFromCv ? (app.cv.label || null) : null,
+            scoredAt: app.createdAt,
+            profileUpdatedAt: profile?.updatedAt || null,
+            // True when the profile shown is not the profile that was scored.
+            stale: !scoredFromCv && !!profileMovedOn,
+            profileCompleteness: profile?.profileCompletenessScore ?? null
+          }
         };
       })
     );
