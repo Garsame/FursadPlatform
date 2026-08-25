@@ -38,6 +38,7 @@ import JobseekerProfile from './pages/jobseeker/Profile';
 import JobseekerCvs from './pages/jobseeker/Cvs';
 import JobseekerProfileBuilder from './pages/jobseeker/ProfileBuilder';
 import JobseekerMessages from './pages/jobseeker/Messages';
+import JobseekerCvPerformance from './pages/jobseeker/CvPerformance';
 
 // Provider Pages
 import ProviderLogin from './pages/provider/Login';
@@ -92,6 +93,7 @@ function App() {
                   <Route path="/dashboard" element={<JobseekerDashboard />} />
                   <Route path="/dashboard/jobs" element={<JobseekerJobs />} />
                   <Route path="/dashboard/cvs" element={<JobseekerCvs />} />
+                  <Route path="/dashboard/cv-performance" element={<JobseekerCvPerformance />} />
                   <Route path="/dashboard/applications" element={<JobseekerApplications />} />
                   <Route path="/dashboard/messages" element={<JobseekerMessages />} />
                   <Route path="/dashboard/build" element={<JobseekerProfileBuilder />} />

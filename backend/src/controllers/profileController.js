@@ -2,9 +2,13 @@ const path = require('path');
 const JobseekerProfile = require('../models/JobseekerProfile');
 const User = require('../models/User');
 const Job = require('../models/Job');
+// Required for its side effect as well as its use: populating job.company
+// needs the model registered, and relying on some other module having loaded
+// it first works only by accident.
+const Company = require('../models/Company');
 const CV = require('../models/CV');
 const aiService = require('../services/aiService');
-const { rankJobsForCandidate } = require('../services/matchingService');
+const { rankJobsForCandidate, calculateMatchScore } = require('../services/matchingService');
 const { removeFile, UPLOAD_ROOT } = require('../services/documentService');
 
 // @desc    Get current jobseeker profile
@@ -178,6 +182,143 @@ const getRecommendations = async (req, res) => {
     });
   } catch (error) {
     console.error('Get Recommendations Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const FACTOR_LABELS = {
+  skills: 'Skills', location: 'Location', salary: 'Salary',
+  education: 'Education', experience: 'Experience'
+};
+
+/**
+ * How every CV performs against every live vacancy.
+ *
+ * The matched-jobs list already let a candidate switch which CV drives the
+ * ranking, but only one at a time — so "this CV is worth more on data roles
+ * than my other one" was something they had to hold in their head across
+ * several page loads. This scores the whole grid at once and says which CV
+ * wins where, and by how much.
+ *
+ * The cost is one score per CV per job. Skill embeddings are cached per
+ * distinct string, so after the first pass this is arithmetic rather than API
+ * calls; the grid is capped so a candidate with many CVs cannot make it
+ * unbounded.
+ */
+// @desc    Compare every CV against every open job
+// @route   GET /api/profile/cv-performance
+// @access  Private (Jobseeker only)
+const getCvPerformance = async (req, res) => {
+  try {
+    const cvs = await CV.find({ user: req.user._id, parseStatus: 'parsed' })
+      .select('label parsed isPrimary createdAt originalName')
+      .sort({ isPrimary: -1, createdAt: -1 })
+      .limit(8);
+
+    if (!cvs.length) {
+      return res.status(200).json({
+        success: true,
+        data: { cvs: [], jobs: [], matrix: [], summaries: [], jobBest: [], overall: null },
+        message: 'Upload and analyse a CV to see how it performs against open jobs.'
+      });
+    }
+
+    const jobs = await Job.find({ status: 'published' })
+      .populate('company', 'name logoUrl')
+      .sort({ publishedAt: -1 })
+      .limit(60);
+
+    if (!jobs.length) {
+      return res.status(200).json({
+        success: true,
+        data: { cvs: cvs.map((c) => ({ _id: c._id, label: c.label })), jobs: [], matrix: [], summaries: [], jobBest: [], overall: null },
+        message: 'There are no open jobs to compare against yet.'
+      });
+    }
+
+    // One row per job, one cell per CV.
+    const matrix = [];
+    for (const job of jobs) {
+      const cells = [];
+      for (const cv of cvs) {
+        const { score, breakdown } = await calculateMatchScore(cv.parsed, job);
+        cells.push({ cvId: cv._id, score, breakdown });
+      }
+      const best = cells.reduce((a, b) => (b.score > a.score ? b : a));
+      const runnerUp = cells.filter((c) => c.cvId !== best.cvId)
+        .reduce((a, b) => (!a || b.score > a.score ? b : a), null);
+
+      matrix.push({
+        jobId: job._id,
+        title: job.title,
+        companyName: job.company?.name || '',
+        city: job.location?.city || '',
+        employmentType: job.employmentType,
+        cells,
+        bestCvId: best.cvId,
+        bestScore: best.score,
+        // What choosing the right CV is actually worth on this job.
+        margin: runnerUp ? best.score - runnerUp.score : 0
+      });
+    }
+
+    // Per-CV summary: how it does across the whole board.
+    const summaries = cvs.map((cv) => {
+      const scores = matrix.map((row) => row.cells.find((c) => String(c.cvId) === String(cv._id)));
+      const values = scores.map((s) => s.score);
+      const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+
+      const bestRow = matrix.reduce((a, b) =>
+        (b.cells.find((c) => String(c.cvId) === String(cv._id)).score >
+         a.cells.find((c) => String(c.cvId) === String(cv._id)).score ? b : a));
+
+      // Average each factor so the CV's own strength and weakness are visible.
+      const factorAvg = {};
+      Object.keys(FACTOR_LABELS).forEach((f) => {
+        factorAvg[f] = Math.round(scores.reduce((sum, s) => sum + (s.breakdown[f] || 0), 0) / scores.length);
+      });
+      const ordered = Object.entries(factorAvg).sort((a, b) => b[1] - a[1]);
+
+      return {
+        cvId: cv._id,
+        label: cv.label,
+        originalName: cv.originalName,
+        isPrimary: cv.isPrimary,
+        skillCount: (cv.parsed?.skills || []).length,
+        languages: cv.parsed?.languages || [],
+        certifications: cv.parsed?.certifications || [],
+        avgScore: avg,
+        bestScore: Math.max(...values),
+        worstScore: Math.min(...values),
+        above70: values.filter((v) => v >= 70).length,
+        winsOn: matrix.filter((row) => String(row.bestCvId) === String(cv._id)).length,
+        bestJob: { jobId: bestRow.jobId, title: bestRow.title, companyName: bestRow.companyName,
+          score: bestRow.cells.find((c) => String(c.cvId) === String(cv._id)).score },
+        strongest: { factor: FACTOR_LABELS[ordered[0][0]], score: ordered[0][1] },
+        weakest: { factor: FACTOR_LABELS[ordered[ordered.length - 1][0]], score: ordered[ordered.length - 1][1] }
+      };
+    });
+
+    const overallBest = summaries.reduce((a, b) => (b.avgScore > a.avgScore ? b : a));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        cvs: cvs.map((c) => ({ _id: c._id, label: c.label, isPrimary: c.isPrimary })),
+        jobCount: jobs.length,
+        matrix: matrix.sort((a, b) => b.bestScore - a.bestScore),
+        summaries: summaries.sort((a, b) => b.avgScore - a.avgScore),
+        overall: {
+          bestCvId: overallBest.cvId,
+          bestCvLabel: overallBest.label,
+          bestAvg: overallBest.avgScore,
+          // The single most useful sentence on the page.
+          biggestMargin: matrix.reduce((a, b) => (b.margin > a.margin ? b : a))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('CV Performance Error:', error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -375,6 +516,7 @@ module.exports = {
   updateMyProfile,
   parseResumeText,
   getRecommendations,
+  getCvPerformance,
   uploadAvatar,
   getInterviewState,
   submitInterviewAnswer,

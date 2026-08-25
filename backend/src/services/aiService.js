@@ -80,6 +80,8 @@ const parseResume = async (rawText, language = 'en') => {
     ],
     experienceLevel: 'mid',
     highestEducationLevel: 'Bachelor',
+    languages: [{ name: 'Somali', proficiency: 'native' }, { name: 'English', proficiency: 'fluent' }],
+    certifications: [],
     profileCompletenessScore: 85,
     aiImprovementTips: 'Consider adding details about certifications or side projects.'
   };
@@ -99,10 +101,23 @@ const parseResume = async (rawText, language = 'en') => {
         "experience": [{ "title": "Job title", "company": "Company Name", "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD or null for present", "description": "Responsibilities" }],
         "experienceLevel": "entry or mid or senior or lead or executive",
         "highestEducationLevel": "Highest level completed",
+        "languages": [{ "name": "Somali", "proficiency": "native or fluent or professional or intermediate or basic" }],
+        "certifications": ["Certificate or licence name, issuer if stated"],
         "profileCompletenessScore": 85,
         "aiImprovementTips": "Suggestions to complete profile"
       }
-      
+
+      Notes on the harder fields:
+      - languages: include every language the CV mentions the person speaks,
+        reads or writes. In this region Somali, English and Arabic are common
+        and are frequently listed only in a header line or a one-word list.
+        Where no proficiency is stated, infer a conservative one rather than
+        omitting the language. Return [] if the CV genuinely names none.
+      - certifications: professional certificates, licences and formal training
+        only. Do not repeat degrees already in "education". Return [] if none.
+      - skills: list the skill itself, not a sentence. Split things joined by
+        "and" or "&" into separate entries.
+
       Raw CV Text:
       "${rawText}"
     `;
@@ -129,9 +144,43 @@ const normaliseParsedResume = (parsed) => {
   parsed.experienceLevel = EXPERIENCE_LEVELS.find((l) => lvl.includes(l)) || 'entry';
 
   if (Array.isArray(parsed.skills)) {
+    // A model asked for skills sometimes answers with "React and Node js" as a
+    // single entry, which then matches nothing. Split the joins it uses --
+    // "and" needs word boundaries or it tears "Android" and "Command" apart.
     parsed.skills = [...new Set(
-      parsed.skills.filter((s) => typeof s === 'string').map((s) => s.trim()).filter(Boolean)
+      parsed.skills
+        .filter((s) => typeof s === 'string')
+        .flatMap((s) => s.split(/\s*(?:,|;|\/|\||&|\band\b)\s*/i))
+        .map((s) => s.trim().replace(/^[-•*\s]+/, ''))
+        .filter((s) => s.length > 1)
     )];
+  }
+
+  const PROFICIENCY = ['native', 'fluent', 'professional', 'intermediate', 'basic'];
+  if (Array.isArray(parsed.languages)) {
+    parsed.languages = parsed.languages
+      .map((l) => (typeof l === 'string' ? { name: l, proficiency: '' } : l))
+      .filter((l) => l && typeof l.name === 'string' && l.name.trim())
+      .map((l) => {
+        const p = String(l.proficiency || '').toLowerCase().trim();
+        return {
+          name: l.name.trim(),
+          proficiency: PROFICIENCY.find((x) => p.includes(x)) || 'intermediate'
+        };
+      });
+  } else {
+    parsed.languages = [];
+  }
+
+  if (Array.isArray(parsed.certifications)) {
+    parsed.certifications = [...new Set(
+      parsed.certifications
+        .map((c) => (typeof c === 'string' ? c : c?.name))
+        .filter((c) => typeof c === 'string' && c.trim().length > 2)
+        .map((c) => c.trim())
+    )];
+  } else {
+    parsed.certifications = [];
   }
 
   // Dates arrive as strings; Mongoose casts them, but "present"/null must not

@@ -52,6 +52,14 @@ const cvSchema = new mongoose.Schema(
       }],
       experienceLevel:       { type: String, default: '' },
       highestEducationLevel: { type: String, default: '' },
+      // Read straight off the CV. In this region a candidate's languages are
+      // often the deciding factor for customer-facing roles, and they were
+      // being thrown away entirely.
+      languages: [{
+        name:        { type: String, trim: true },
+        proficiency: { type: String, trim: true, default: '' }
+      }],
+      certifications: [{ type: String, trim: true }],
       salaryExpectation: {
         min:      { type: Number, default: 0 },
         max:      { type: Number, default: 0 },

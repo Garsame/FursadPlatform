@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
-  getMyProfile, updateMyProfile, parseResumeText, getRecommendations, uploadAvatar,
+  getMyProfile, updateMyProfile, parseResumeText, getRecommendations, getCvPerformance, uploadAvatar,
   getInterviewState, submitInterviewAnswer, regenerateSpecification
 } = require('../controllers/profileController');
 const { protect } = require('../middleware/auth');
@@ -17,6 +17,7 @@ router.put('/me', updateMyProfile);
 router.post('/avatar', uploadAvatarFile.single('image'), uploadAvatar);
 router.post('/parse-resume', parseResumeText);
 router.get('/recommendations', getRecommendations);
+router.get('/cv-performance', getCvPerformance);
 
 // AI profile builder
 router.get('/interview', getInterviewState);

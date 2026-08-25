@@ -1,5 +1,6 @@
 const path = require('path');
 const CV = require('../models/CV');
+const JobseekerProfile = require('../models/JobseekerProfile');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const aiService = require('../services/aiService');
@@ -75,9 +76,28 @@ const uploadCv = async (req, res) => {
           experience: parsed.experience || [],
           experienceLevel: parsed.experienceLevel || '',
           highestEducationLevel: parsed.highestEducationLevel || '',
-          salaryExpectation: parsed.salaryExpectation || { min: 0, max: 0, currency: 'USD' }
+          salaryExpectation: parsed.salaryExpectation || { min: 0, max: 0, currency: 'USD' },
+          languages: parsed.languages || [],
+          certifications: parsed.certifications || []
         };
         cv.parseStatus = 'parsed';
+
+        // Languages belong on the profile too — an employer reading an
+        // applicant sees the profile, and a language only ever recorded on one
+        // CV would be invisible everywhere else.
+        if (parsed.languages?.length) {
+          const profile = await JobseekerProfile.findOne({ user: req.user._id });
+          if (profile) {
+            const known = new Set((profile.languagesSpoken || []).map((l) => l.toLowerCase()));
+            const additions = parsed.languages
+              .map((l) => l.name)
+              .filter((n) => n && !known.has(n.toLowerCase()));
+            if (additions.length) {
+              profile.languagesSpoken = [...(profile.languagesSpoken || []), ...additions];
+              await profile.save();
+            }
+          }
+        }
       } catch (err) {
         cv.parseStatus = 'failed';
         cv.parseError = err.message;

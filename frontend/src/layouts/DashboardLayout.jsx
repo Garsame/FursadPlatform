@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useJobseekerAuth } from '../context/JobseekerAuthContext';
 import {
-  LayoutDashboard, Search, FileText, User, LogOut, FileStack, Menu, X, Sparkles, MessageSquare,
+  LayoutDashboard, Search, FileText, User, LogOut, FileStack, Menu, X, Sparkles, MessageSquare, BarChart3,
 } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import Logo from '../components/Logo';
@@ -37,6 +37,7 @@ const DashboardLayout = () => {
     { path: '/dashboard',              label: t('nav.dashboard'),    icon: LayoutDashboard },
     { path: '/dashboard/jobs',         label: t('nav.jobs'),         icon: Search },
     { path: '/dashboard/cvs',          label: t('nav.my_cvs'),       icon: FileStack },
+    { path: '/dashboard/cv-performance', label: 'CV Performance',    icon: BarChart3 },
     { path: '/dashboard/build',        label: t('nav.build_profile'), icon: Sparkles },
     { path: '/dashboard/applications', label: t('nav.applications'), icon: FileText },
     { path: '/dashboard/messages',     label: t('nav.messages'),     icon: MessageSquare, badge: unread },
