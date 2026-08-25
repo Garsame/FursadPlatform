@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const emailService = require('../services/emailService');
+const ContactMessage = require('../models/ContactMessage');
+const User = require('../models/User');
+const { emailLimiter } = require('../middleware/rateLimit');
 
 // @desc    Public contact form
 // @route   POST /api/contact
-// @access  Public
-router.post('/', async (req, res) => {
+// @access  Public (rate limited — it sends mail on an address the caller names)
+router.post('/', emailLimiter, async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
 
@@ -19,9 +22,26 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'That message is too long' });
     }
 
-    await emailService.sendContactMessage({
-      name: name.trim(), email: email.trim(), subject, message: message.trim()
+    // Stored first, then emailed. A message that only exists in an inbox is
+    // lost the moment delivery fails, and nobody can see what was answered.
+    const senderUser = await User.findOne({ email: email.trim().toLowerCase() }).select('_id');
+
+    const record = await ContactMessage.create({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      subject: (subject || '').trim(),
+      message: message.trim(),
+      senderUser: senderUser?._id || null
     });
+
+    const delivery = await emailService.sendContactMessage({
+      name: record.name, email: record.email, subject: record.subject, message: record.message
+    });
+
+    if (delivery?.sent) {
+      record.emailDelivered = true;
+      await record.save();
+    }
 
     return res.status(200).json({
       success: true,

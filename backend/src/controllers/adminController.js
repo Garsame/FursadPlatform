@@ -5,6 +5,7 @@ const AuditLog = require('../models/AuditLog');
 const Company = require('../models/Company');
 const CV = require('../models/CV');
 const emailService = require('../services/emailService');
+const ContactMessage = require('../models/ContactMessage');
 const notificationService = require('../services/notificationService');
 const JobseekerProfile = require('../models/JobseekerProfile');
 const Message = require('../models/Message');
@@ -771,6 +772,89 @@ const getPlatformAnalytics = async (req, res) => {
   }
 };
 
+// @desc    Messages sent through the public contact form
+// @route   GET /api/admin/contact?status=new
+// @access  Private (Admin only)
+const getContactMessages = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const query = {};
+    if (['new', 'in_progress', 'resolved'].includes(status)) query.status = status;
+
+    const [data, counts] = await Promise.all([
+      ContactMessage.find(query)
+        .populate('handledBy', 'name')
+        .populate('senderUser', 'name role')
+        .sort({ createdAt: -1 })
+        .limit(200),
+      ContactMessage.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }])
+    ]);
+
+    const byStatus = ['new', 'in_progress', 'resolved'].reduce((acc, s) => {
+      acc[s] = counts.find((c) => c._id === s)?.n || 0;
+      return acc;
+    }, {});
+
+    return res.status(200).json({ success: true, count: data.length, byStatus, data });
+  } catch (error) {
+    console.error('Admin Get Contact Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Move an enquiry through the queue
+// @route   PUT /api/admin/contact/:id
+// @access  Private (Admin only)
+const updateContactMessage = async (req, res) => {
+  try {
+    const { status, adminNote } = req.body;
+    const record = await ContactMessage.findById(req.params.id);
+    if (!record) return res.status(404).json({ success: false, message: 'Message not found' });
+
+    if (status) {
+      if (!['new', 'in_progress', 'resolved'].includes(status)) {
+        return res.status(400).json({ success: false, message: 'Invalid status' });
+      }
+      record.status = status;
+      // Records who took it, so two people do not answer the same enquiry.
+      record.handledBy = req.user._id;
+      record.handledAt = new Date();
+    }
+    if (adminNote !== undefined) record.adminNote = adminNote;
+
+    await record.save();
+    await record.populate('handledBy', 'name');
+
+    return res.status(200).json({ success: true, message: 'Enquiry updated.', data: record });
+  } catch (error) {
+    console.error('Admin Update Contact Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete an enquiry
+// @route   DELETE /api/admin/contact/:id
+// @access  Private (Admin only)
+const deleteContactMessage = async (req, res) => {
+  try {
+    const deleted = await ContactMessage.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ success: false, message: 'Message not found' });
+
+    await AuditLog.create({
+      actor: req.user._id,
+      action: 'CONTACT_DELETED',
+      targetType: 'ContactMessage',
+      targetId: deleted._id,
+      details: `${req.user.name} deleted an enquiry from ${deleted.email}.`
+    });
+
+    return res.status(200).json({ success: true, message: 'Enquiry deleted.' });
+  } catch (error) {
+    console.error('Admin Delete Contact Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get audit logs
 // @route   GET /api/admin/audit-log
 // @access  Private (Admin only)
@@ -799,5 +883,8 @@ module.exports = {
   setJobStatus,
   reviewJob,
   getPlatformAnalytics,
+  getContactMessages,
+  updateContactMessage,
+  deleteContactMessage,
   getAuditLogs
 };

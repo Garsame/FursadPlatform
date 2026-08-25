@@ -10,6 +10,7 @@ const emailService = require('../services/emailService');
 const notificationService = require('../services/notificationService');
 const Company = require('../models/Company');
 const { APPLICATION_STATUS } = require('../../../shared/constants');
+const { MIN_COMPLETENESS_TO_APPLY } = require('../config/applyRules');
 
 // @desc    Apply to a job listing
 // @route   POST /api/applications
@@ -41,6 +42,22 @@ const applyToJob = async (req, res) => {
     const profile = await JobseekerProfile.findOne({ user: req.user._id }).populate('user', 'name email preferredLanguage');
     if (!profile) {
       return res.status(400).json({ success: false, message: 'Please complete your profile details before applying.' });
+    }
+
+    // A half-empty profile behind an application wastes both sides' time: the
+    // employer reads nothing useful, and the candidate is scored near zero on
+    // a role they might genuinely suit. The bar is about the fields the
+    // matching engine actually reads, not paperwork for its own sake.
+    const missingProfile = profile.missingForApplying();
+    if (profile.profileCompletenessScore < MIN_COMPLETENESS_TO_APPLY) {
+      return res.status(403).json({
+        success: false,
+        needsProfile: true,
+        completeness: profile.profileCompletenessScore,
+        required: MIN_COMPLETENESS_TO_APPLY,
+        missing: missingProfile,
+        message: `Your profile is ${profile.profileCompletenessScore}% complete and needs to reach ${MIN_COMPLETENESS_TO_APPLY}% before you can apply. Still needed: ${missingProfile.map((m) => m.label).join(', ')}.`
+      });
     }
 
     // A CV is mandatory. An application with no document behind it gives the

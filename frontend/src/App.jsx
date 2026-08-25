@@ -59,6 +59,7 @@ import AdminUsers from './pages/admin/Users';
 import AdminJobs from './pages/admin/Jobs';
 import AdminAnalytics from './pages/admin/Analytics';
 import AdminAuditLog from './pages/admin/AuditLog';
+import AdminContact from './pages/admin/Contact';
 
 // Load translation configuration
 import './i18n/i18n';
@@ -131,6 +132,7 @@ function App() {
                   <Route path="/admin/users" element={<AdminUsers />} />
                   <Route path="/admin/jobs" element={<AdminJobs />} />
                   <Route path="/admin/analytics" element={<AdminAnalytics />} />
+                  <Route path="/admin/contact" element={<AdminContact />} />
                   <Route path="/admin/audit" element={<AdminAuditLog />} />
                 </Route>
               </Route>

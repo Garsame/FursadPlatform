@@ -9,6 +9,7 @@ const Company = require('../models/Company');
 const CV = require('../models/CV');
 const aiService = require('../services/aiService');
 const { rankJobsForCandidate, calculateMatchScore } = require('../services/matchingService');
+const { MIN_COMPLETENESS_TO_APPLY } = require('../config/applyRules');
 const { removeFile, UPLOAD_ROOT } = require('../services/documentService');
 
 // @desc    Get current jobseeker profile
@@ -20,7 +21,25 @@ const getMyProfile = async (req, res) => {
     if (!profile) {
       return res.status(404).json({ success: false, message: 'Profile not found' });
     }
-    return res.status(200).json({ success: true, data: profile });
+
+    // Readiness travels with the profile so every screen shows the same answer
+    // instead of each one reimplementing the rule.
+    const cvCount = await CV.countDocuments({ user: req.user._id });
+    const missing = profile.missingForApplying();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...profile.toObject(),
+        readiness: {
+          completeness: profile.profileCompletenessScore,
+          required: MIN_COMPLETENESS_TO_APPLY,
+          cvCount,
+          missingProfile: missing,
+          canApply: profile.profileCompletenessScore >= MIN_COMPLETENESS_TO_APPLY && cvCount > 0
+        }
+      }
+    });
   } catch (error) {
     console.error('Get Profile Error:', error.message);
     return res.status(500).json({ success: false, message: error.message });
@@ -64,16 +83,8 @@ const updateMyProfile = async (req, res) => {
     if (languagesSpoken !== undefined) profile.languagesSpoken = languagesSpoken;
     if (resumeFileUrl !== undefined) profile.resumeFileUrl = resumeFileUrl;
 
-    // Calculate completeness score (simple estimation)
-    let completeness = 10; // base score for account creation
-    if (profile.headline) completeness += 15;
-    if (profile.bio) completeness += 15;
-    if (profile.skills && profile.skills.length > 0) completeness += 20;
-    if (profile.location?.city) completeness += 10;
-    if (profile.education && profile.education.length > 0) completeness += 15;
-    if (profile.experience && profile.experience.length > 0) completeness += 15;
-    profile.profileCompletenessScore = Math.min(100, completeness);
-
+    // Completeness is recalculated by the schema's pre-save hook, from the
+    // profile itself, so it can never disagree with what is actually there.
     await profile.save();
 
     const populatedProfile = await JobseekerProfile.findById(profile._id).populate('user', 'name email phone preferredLanguage');
@@ -116,7 +127,6 @@ const parseResumeText = async (req, res) => {
     profile.experience = parsedData.experience || profile.experience;
     profile.experienceLevel = parsedData.experienceLevel || profile.experienceLevel;
     profile.highestEducationLevel = parsedData.highestEducationLevel || profile.highestEducationLevel;
-    profile.profileCompletenessScore = parsedData.profileCompletenessScore || profile.profileCompletenessScore;
     profile.aiImprovementTips = parsedData.aiImprovementTips || profile.aiImprovementTips;
     
     await profile.save();

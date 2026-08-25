@@ -645,6 +645,17 @@ const rankApplicants = async (job, applicants) => {
   }
 };
 
+/**
+ * 11. Answer a question from the public assistant.
+ * The caller assembles the prompt; this only runs it, so nothing here can
+ * widen what the assistant is allowed to see.
+ */
+const answerAssistant = async (prompt) => {
+  if (!model) return 'The assistant is not available right now.';
+  const result = await model.generateContent(prompt);
+  return result.response.text().trim();
+};
+
 module.exports = {
   parseResume,
   reviewJobPost,
@@ -657,6 +668,7 @@ module.exports = {
   nextProfileQuestion,
   deriveJobSpecification,
   embedTexts,
+  answerAssistant,
   isLive,
   PROFILE_TOPICS
 };

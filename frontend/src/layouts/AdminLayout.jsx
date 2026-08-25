@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAdminAuth } from '../context/AdminAuthContext';
-import { Briefcase, LayoutDashboard, Users, ShieldCheck, BarChart3, History, LogOut } from 'lucide-react';
+import { Briefcase, LayoutDashboard, Users, ShieldCheck, BarChart3, History, LogOut, Mail } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import NotificationBell from '../components/NotificationBell';
 
@@ -22,6 +22,7 @@ const AdminLayout = () => {
     { path: '/admin/users', label: t('nav.users'), icon: Users },
     { path: '/admin/jobs', label: 'Manage Jobs', icon: ShieldCheck },
     { path: '/admin/analytics', label: t('nav.analytics'), icon: BarChart3 },
+    { path: '/admin/contact', label: 'Enquiries', icon: Mail },
     { path: '/admin/audit', label: t('nav.audit'), icon: History }
   ];
 
@@ -90,6 +91,7 @@ const AdminLayout = () => {
             {location.pathname === '/admin/users' && t('nav.users')}
             {location.pathname === '/admin/jobs' && 'Manage Job Listings'}
             {location.pathname === '/admin/analytics' && 'Platform Performance Analytics'}
+            {location.pathname === '/admin/contact' && 'Contact Enquiries'}
             {location.pathname === '/admin/audit' && 'Audit Log History'}
           </h2>
 

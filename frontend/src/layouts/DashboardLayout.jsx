@@ -9,6 +9,7 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import Logo from '../components/Logo';
 import api from '../services/api';
 import NotificationBell from '../components/NotificationBell';
+import AssistantWidget from '../components/AssistantWidget';
 
 const DashboardLayout = () => {
   const { t } = useTranslation();
@@ -147,6 +148,9 @@ const DashboardLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Floats above the whole shell, so it must sit outside the scrolling column. */}
+      <AssistantWidget />
     </div>
   );
 };

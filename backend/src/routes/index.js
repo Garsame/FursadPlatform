@@ -10,6 +10,7 @@ const cvRoutes = require('./cvRoutes');
 const contactRoutes = require('./contactRoutes');
 const companyRoutes = require('./companyRoutes');
 const notificationRoutes = require('./notificationRoutes');
+const assistantRoutes = require('./assistantRoutes');
 
 router.use('/auth', authRoutes);
 router.use('/profile', profileRoutes);
@@ -20,5 +21,6 @@ router.use('/cvs', cvRoutes);
 router.use('/contact', contactRoutes);
 router.use('/companies', companyRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/assistant', assistantRoutes);
 
 module.exports = router;

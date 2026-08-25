@@ -11,6 +11,9 @@ const {
   setJobStatus,
   reviewJob,
   getPlatformAnalytics,
+  getContactMessages,
+  updateContactMessage,
+  deleteContactMessage,
   getAuditLogs
 } = require('../controllers/adminController');
 const { protect } = require('../middleware/auth');
@@ -30,6 +33,9 @@ router.get('/jobs', getAllJobs);
 router.put('/jobs/:id/status', setJobStatus);
 router.put('/jobs/:id/review', reviewJob);
 router.get('/analytics', getPlatformAnalytics);
+router.get('/contact', getContactMessages);
+router.put('/contact/:id', updateContactMessage);
+router.delete('/contact/:id', deleteContactMessage);
 router.get('/audit-log', getAuditLogs);
 
 module.exports = router;

@@ -5,6 +5,7 @@ import { Menu, X } from 'lucide-react';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import Button from '../components/ui/Button';
 import Logo from '../components/Logo';
+import AssistantWidget from '../components/AssistantWidget';
 
 const PublicLayout = () => {
   const { t } = useTranslation();
@@ -159,6 +160,7 @@ const PublicLayout = () => {
           </div>
         </div>
       </footer>
+      <AssistantWidget />
     </div>
   );
 };
