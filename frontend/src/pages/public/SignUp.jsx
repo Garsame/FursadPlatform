@@ -180,7 +180,7 @@ const SignUp = () => {
                 <Button variant="secondary" size="lg" onClick={() => { setStep(1); setError(''); }}>
                   <ArrowLeft size={17} />
                 </Button>
-                <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading}>
+                <Button type="submit" variant="primary" size="lg" fullWidth loading={loading}>
                   {loading ? 'Creating account…' : t('auth.signup_btn')}
                 </Button>
               </div>

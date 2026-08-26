@@ -69,7 +69,7 @@ const Login = () => {
             required
           />
 
-          <Button type="submit" variant="danger" fullWidth disabled={loading}>
+          <Button type="submit" variant="danger" fullWidth loading={loading}>
             {loading ? 'Securing Access...' : 'Authenticate'}
           </Button>
         </form>

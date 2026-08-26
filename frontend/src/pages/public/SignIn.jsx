@@ -97,7 +97,7 @@ const SignIn = () => {
               </Link>
             </div>
 
-            <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading}>
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={loading}>
               {loading ? t('auth.signing_in') : t('auth.signin_btn')}
             </Button>
           </form>

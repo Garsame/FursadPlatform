@@ -374,7 +374,7 @@ const JobDetail = () => {
               <Button variant="secondary" fullWidth onClick={() => setApplyOpen(false)}>
                 {t('jobdetail.cancel')}
               </Button>
-              <Button type="submit" variant="primary" fullWidth disabled={submitting}>
+              <Button type="submit" variant="primary" fullWidth loading={submitting}>
                 {submitting ? t('jobdetail.submitting') : t('jobdetail.submit')}
               </Button>
             </div>

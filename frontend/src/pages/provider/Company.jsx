@@ -226,7 +226,7 @@ const Company = () => {
               Candidates read this before they apply, and you need the essentials filled in to post a job.
             </p>
           </div>
-          <Button type="submit" variant="primary" size="lg" disabled={saving}>
+          <Button type="submit" variant="primary" size="lg" loading={saving}>
             <Save size={17} /> {saving ? 'Saving…' : 'Save profile'}
           </Button>
         </div>

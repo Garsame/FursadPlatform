@@ -130,7 +130,7 @@ const ForgotPassword = () => {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading}>
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={loading}>
               {loading ? t('auth.forgot_sending') : t('auth.forgot_btn')}
             </Button>
           </form>
@@ -167,7 +167,7 @@ const ForgotPassword = () => {
               onChange={(e) => setConfirm(e.target.value)}
               required
             />
-            <Button type="submit" variant="primary" size="lg" fullWidth disabled={loading}>
+            <Button type="submit" variant="primary" size="lg" fullWidth loading={loading}>
               {loading ? t('auth.reset_saving') : t('auth.reset_btn')}
             </Button>
 

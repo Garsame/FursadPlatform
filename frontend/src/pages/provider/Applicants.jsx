@@ -5,11 +5,12 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import { LoadingBlock } from '../../components/ui/Spinner';
 import ApplicantCvPanel from '../../components/ApplicantCvPanel';
 import { io } from 'socket.io-client';
 import {
   Brain, User, Calendar, MapPin, Send, MessageSquare, Clipboard, Mail, Sparkles,
-  BookOpen, Briefcase, Download, Loader2, Check, Lock,
+  BookOpen, Briefcase, Download, Loader2, Check, Lock, AlertTriangle,
 } from 'lucide-react';
 
 const Applicants = () => {
@@ -35,9 +36,12 @@ const Applicants = () => {
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // UI state for status updating
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [prepLoading, setPrepLoading] = useState(false);
+  // Which row is mid-request, rather than one flag for the whole page: a
+  // global boolean disabled every candidate's controls while any one of them
+  // was saving, which reads as the page having frozen.
+  const [statusBusyId, setStatusBusyId] = useState(null);
+  const [prepBusyId, setPrepBusyId] = useState(null);
+  const [statusError, setStatusError] = useState('');
 
   // AI shortlist of the people who applied
   const [shortlist, setShortlist] = useState(null);
@@ -121,30 +125,55 @@ const Applicants = () => {
     }, 100);
   };
 
+  /**
+   * Move a candidate along the pipeline.
+   *
+   * The <select> is controlled by `app.status`, so picking a new option used to
+   * change nothing on screen: React immediately re-rendered the control back to
+   * the value still held in state, and only a refetch — several seconds later,
+   * behind an AI call and an outbound email — moved it. It looked broken, so
+   * people clicked again and again.
+   *
+   * The new status is therefore applied locally first and reverted if the
+   * server refuses it, which is the only way a controlled select can respond to
+   * a click at the moment it happens.
+   */
   const handleUpdateStatus = async (appId, newStatus) => {
-    setStatusLoading(true);
+    const previous = applicants.find((a) => a._id === appId)?.status;
+    if (!previous || previous === newStatus) return;
+
+    const applyLocally = (status) => {
+      setApplicants((list) => list.map((a) => (a._id === appId ? { ...a, status } : a)));
+      setSelectedApp((prev) => (prev && prev._id === appId ? { ...prev, status } : prev));
+    };
+
+    applyLocally(newStatus);
+    setStatusBusyId(appId);
+    setStatusError('');
+
     try {
       const res = await api.put(`/applications/${appId}/status`, {
         status: newStatus,
         note: `Status updated by employer to ${newStatus}`
       });
+      if (!res.data?.success) throw new Error(res.data?.message || 'The update was not saved.');
 
-      if (res.data?.success) {
-        // Refresh local details
-        fetchApplicants();
-        if (selectedApp && selectedApp._id === appId) {
-          setSelectedApp(prev => ({ ...prev, status: newStatus }));
-        }
-      }
+      // Awaited, so the row stops spinning only once the server's own version
+      // of this candidate is on screen.
+      await fetchApplicants();
     } catch (err) {
-      alert('Failed to update status: ' + (err.response?.data?.message || err.message));
+      applyLocally(previous);
+      setStatusError(
+        `${applicants.find((a) => a._id === appId)?.jobseeker?.name || 'That candidate'}: ` +
+        (err.response?.data?.message || err.message || 'the status could not be updated.')
+      );
     } finally {
-      setStatusLoading(false);
+      setStatusBusyId(null);
     }
   };
 
   const handleSendPrep = async (appId) => {
-    setPrepLoading(true);
+    setPrepBusyId(appId);
     try {
       const res = await api.post(`/applications/${appId}/interview-prep`);
       if (res.data?.success) {
@@ -154,7 +183,7 @@ const Applicants = () => {
     } catch (err) {
       alert('Failed to generate interview prep materials');
     } finally {
-      setPrepLoading(false);
+      setPrepBusyId(null);
     }
   };
 
@@ -210,11 +239,7 @@ const Applicants = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#00C27C]"></div>
-      </div>
-    );
+    return <LoadingBlock label="Loading candidates…" className="min-h-[50vh]" />;
   }
 
   return (
@@ -244,8 +269,8 @@ const Applicants = () => {
                 </p>
               </div>
             </div>
-            <Button variant="secondary" onClick={loadShortlist} disabled={shortlistLoading}>
-              {shortlistLoading ? 'Analysing…' : shortlist ? 'Re-run' : 'Rank applicants'}
+            <Button variant="secondary" onClick={loadShortlist} loading={shortlistLoading}>
+              {shortlistLoading ? 'Analysing applicants…' : shortlist ? 'Re-run' : 'Rank applicants'}
             </Button>
           </div>
 
@@ -287,6 +312,13 @@ const Applicants = () => {
       {/* Ranked Applicants */}
       <div className="flex flex-col gap-4">
         <h3 className="text-lg font-bold text-text-primary">Ranked Candidates (AI Score compatibility)</h3>
+
+        {statusError && (
+          <div role="alert" className="flex items-start gap-2.5 rounded-input border border-danger/30 bg-danger/5 p-3">
+            <AlertTriangle size={15} className="text-danger shrink-0 mt-0.5" />
+            <p className="text-sm text-danger">{statusError}</p>
+          </div>
+        )}
 
         {applicants.length === 0 ? (
           <Card className="text-center py-12 text-text-secondary">No candidates have applied to this job yet.</Card>
@@ -330,29 +362,51 @@ const Applicants = () => {
               {/* Row 3: Action Buttons */}
               <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={app.status}
-                    disabled={statusLoading}
-                    onChange={(e) => handleUpdateStatus(app._id, e.target.value)}
-                    className="px-3 h-9 bg-bg-surface border border-border-subtle focus:border-brand-green focus:outline-none rounded-input text-xs text-text-primary"
-                  >
-                    <option value="applied">Applied</option>
-                    <option value="reviewed">Reviewed</option>
-                    <option value="shortlisted">Shortlisted</option>
-                    <option value="interview">Interview</option>
-                    <option value="offer">Offer</option>
-                    <option value="hired">Hired</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
+                  <div className="relative inline-flex items-center">
+                    <select
+                      value={app.status}
+                      disabled={statusBusyId === app._id}
+                      onChange={(e) => handleUpdateStatus(app._id, e.target.value)}
+                      aria-busy={statusBusyId === app._id}
+                      className={`h-9 pl-3 bg-bg-surface border border-border-subtle focus:border-brand-green
+                        focus:outline-none rounded-input text-xs text-text-primary transition-opacity
+                        ${statusBusyId === app._id ? 'opacity-70 pr-8' : 'pr-3'}`}
+                    >
+                      <option value="applied">Applied</option>
+                      <option value="reviewed">Reviewed</option>
+                      <option value="shortlisted">Shortlisted</option>
+                      <option value="interview">Interview</option>
+                      <option value="offer">Offer</option>
+                      <option value="hired">Hired</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                    {statusBusyId === app._id && (
+                      <Loader2
+                        size={13}
+                        className="absolute right-2.5 animate-spin text-brand-deep pointer-events-none"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </div>
+
+                  {statusBusyId === app._id && (
+                    <span role="status" className="text-[11px] font-semibold text-text-muted">
+                      Saving, emailing the candidate…
+                    </span>
+                  )}
 
                   {(app.status === 'shortlisted' || app.status === 'interview') && (
-                    <Button 
-                      variant="secondary" 
-                      className="h-9 text-xs gap-1.5" 
+                    <Button
+                      variant="secondary"
+                      className="h-9 text-xs gap-1.5"
                       onClick={() => handleSendPrep(app._id)}
-                      disabled={prepLoading || app.interviewPrepSent}
+                      loading={prepBusyId === app._id}
+                      disabled={app.interviewPrepSent}
                     >
-                      <Mail size={14} /> {app.interviewPrepSent ? 'Prep Email Sent' : 'Send AI Prep Email'}
+                      {prepBusyId !== app._id && <Mail size={14} />}
+                      {prepBusyId === app._id
+                        ? 'Writing questions…'
+                        : app.interviewPrepSent ? 'Prep Email Sent' : 'Send AI Prep Email'}
                     </Button>
                   )}
                 </div>

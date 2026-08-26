@@ -47,7 +47,8 @@
     "delete_confirm_sub": "This cannot be undone.",
     "cancel": "Cancel",
     "confirm_delete": "Yes, delete it",
-    "used_in_apps": "Sent with applications, so it is locked"
+    "used_in_apps": "Sent with applications, so it is locked",
+    "uploading_sub": "Reading your CV with AI — this usually takes a few seconds."
   },
   "seekerjobs": {
     "tab_all": "All jobs",
@@ -137,7 +138,30 @@
     "faq_3_q": "Do I need a CV to sign up?",
     "faq_3_a": "It helps but it is not required. You can paste the text of an existing CV and have it parsed automatically, or fill in your profile by hand.",
     "faq_4_q": "How do I know a job posting is genuine?",
-    "faq_4_a": "Every listing is checked automatically for fraud and quality signals before it goes live. Anything that scores poorly or raises a flag is held back for a human administrator to approve or reject."
+    "faq_4_a": "Every listing is checked automatically for fraud and quality signals before it goes live. Anything that scores poorly or raises a flag is held back for a human administrator to approve or reject.",
+    "hero_popular": "Popular",
+    "hero_trust": "Free for job seekers · Somali and English · Every vacancy reviewed before it appears",
+    "mp_title": "Example match",
+    "mp_computed": "Computed, not estimated",
+    "mp_candidate": "Candidate",
+    "mp_role": "Open role",
+    "mp_match": "Match",
+    "mp_why": "Why this score",
+    "f_skills": "Skills",
+    "f_location": "Location",
+    "f_salary": "Salary",
+    "f_education": "Education",
+    "f_experience": "Experience",
+    "trusted_eyebrow": "Hiring now",
+    "trusted_sub": "Every employer here has at least one open vacancy that has passed review, and a company profile you can read before you decide to apply.",
+    "trusted_all": "Browse every open role",
+    "verified": "Verified",
+    "view_profile": "View profile",
+    "why_sub": "Four things that change what actually happens when you apply. Each one is a rule enforced in the product, not a promise on a page.",
+    "why_1_m": "Skills carry 45% of every score — the heaviest single factor",
+    "why_2_m": "Salary overlap is worth 15% of the match",
+    "why_3_m": "Nothing reaches the public site until a person approves it",
+    "why_4_m": "Switch language on any page, at any time"
   },
   "jobs": {
     "eyebrow": "Job board",
@@ -238,7 +262,9 @@
     "reset_mismatch": "Those passwords do not match",
     "reset_too_short": "Password must be at least 8 characters",
     "reset_back": "Use a different email",
-    "back_to_signin": "Back to sign in"
+    "back_to_signin": "Back to sign in",
+    "show_password": "Show password",
+    "hide_password": "Hide password"
   },
   "footer": {
     "blurb": "Fursad connects talent across Somalia and East Africa with employers who are hiring, using AI matching to make every application count.",

@@ -80,7 +80,7 @@ const Login = () => {
             </Link>
           </div>
 
-          <Button type="submit" variant="primary" fullWidth disabled={loading}>
+          <Button type="submit" variant="primary" fullWidth loading={loading}>
             {loading ? 'Entering Portal...' : t('auth.signin_btn')}
           </Button>
         </form>

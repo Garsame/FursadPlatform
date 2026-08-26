@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Search, MapPin, ArrowRight, Sparkles, FileText, Target, Send,
   MessageSquare, Trophy, ShieldCheck, Languages, BadgeDollarSign,
-  Plus, Minus, Building2,
+  Plus, Minus, Building2, Briefcase, ArrowRightLeft,
 } from 'lucide-react';
 import api from '../../services/api';
 import Button from '../../components/ui/Button';
@@ -12,11 +12,6 @@ import JobCard from '../../components/JobCard';
 import CompanyLogo from '../../components/CompanyLogo';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-
-const HERO_IMG =
-  'https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=1100&q=80';
-const HERO_IMG_2 =
-  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80';
 
 const Home = () => {
   const { t } = useTranslation();
@@ -45,34 +40,48 @@ const Home = () => {
     })();
   }, []);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
+  const runSearch = (overrides = {}) => {
     const params = new URLSearchParams();
-    if (q.trim()) params.set('search', q.trim());
-    if (city.trim()) params.set('city', city.trim());
+    const term = overrides.q ?? q;
+    const place = overrides.city ?? city;
+    if (term.trim()) params.set('search', term.trim());
+    if (place.trim()) params.set('city', place.trim());
     navigate(`/jobs${params.toString() ? `?${params}` : ''}`);
   };
 
+  const handleSearch = (e) => {
+    e.preventDefault();
+    runSearch();
+  };
 
   const cities = [...new Set(jobs.map((j) => j.location?.city).filter(Boolean))];
 
   return (
     <>
       {/* ============================================================ HERO */}
-      <section className="relative overflow-hidden">
-        {/* Soft evergreen wash behind the hero, fading into paper */}
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-brand-muted via-bg-primary to-bg-primary" />
-        <div className="absolute -top-40 -right-32 -z-10 w-[38rem] h-[38rem] rounded-full bg-accent-ochreMuted blur-3xl opacity-70" />
+      {/*
+        Centred rather than split two-up. The search field is the one thing
+        every visitor came to use, so it sits on the page's centre line where
+        the eye lands, and the product itself — not a stock photograph —
+        carries the visual weight underneath it.
 
-        <div className="max-w-7xl mx-auto px-6 pt-lg pb-2xl grid lg:grid-cols-[1.05fr_1fr] gap-xl items-center">
-          {/* ---- Copy column ---- */}
-          <div className="animate-fade-up">
-            <span className="eyebrow">
+        The height is pinned to one viewport on desktop so the hero resolves
+        without scrolling; below lg it flows naturally, because forcing a
+        screen height on a phone only creates dead space.
+      */}
+      <section className="relative overflow-hidden lg:min-h-[calc(100vh-72px)] flex items-center">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-brand-muted via-bg-primary to-bg-primary" />
+        <div className="absolute -top-48 -right-40 -z-10 w-[40rem] h-[40rem] rounded-full bg-accent-ochreMuted blur-3xl opacity-70" />
+        <div className="absolute -bottom-56 -left-40 -z-10 w-[36rem] h-[36rem] rounded-full bg-brand-muted blur-3xl" />
+
+        <div className="w-full max-w-7xl mx-auto px-6 py-lg lg:py-md">
+          <div className="max-w-3xl mx-auto text-center animate-fade-up">
+            <span className="eyebrow justify-center">
               <Sparkles size={14} />
               {t('home.eyebrow')}
             </span>
 
-            <h1 className="font-display text-[2.7rem] sm:text-6xl font-semibold leading-[1.05] text-text-primary mt-5">
+            <h1 className="font-display text-[2.5rem] sm:text-[3.4rem] lg:text-[3.9rem] font-semibold leading-[1.04] text-text-primary mt-5">
               {t('home.hero_title_a')}{' '}
               <span className="relative inline-block">
                 <span className="relative z-10 text-brand-deep">{t('home.hero_title_em')}</span>
@@ -81,158 +90,97 @@ const Home = () => {
               {t('home.hero_title_b')}
             </h1>
 
-            <p className="text-lg text-text-secondary mt-6 max-w-prose leading-relaxed">
+            <p className="text-lg text-text-secondary mt-5 mx-auto max-w-2xl leading-relaxed">
               {t('home.hero_sub')}
             </p>
-
-            {/* Search is the primary action on any job platform — it goes above
-                the CTAs, not below them. */}
-            <form
-              onSubmit={handleSearch}
-              className="mt-8 bg-bg-surface border border-border-subtle rounded-card shadow-lift p-2
-                flex flex-col sm:flex-row gap-2"
-            >
-              <div className="relative flex-1">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder={t('home.search_role')}
-                  aria-label={t('home.search_role')}
-                  className="w-full h-12 pl-11 pr-3 bg-transparent rounded-input text-text-primary
-                    placeholder:text-text-muted focus:outline-none"
-                />
-              </div>
-              <div className="relative flex-1 sm:max-w-[13rem] sm:border-l sm:border-border-subtle">
-                <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
-                <input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  list="hero-cities"
-                  placeholder={t('home.search_city')}
-                  aria-label={t('home.search_city')}
-                  className="w-full h-12 pl-11 pr-3 bg-transparent rounded-input text-text-primary
-                    placeholder:text-text-muted focus:outline-none"
-                />
-                <datalist id="hero-cities">
-                  {cities.map((c) => <option key={c} value={c} />)}
-                </datalist>
-              </div>
-              <Button type="submit" variant="primary" size="lg" className="sm:w-auto">
-                <Search size={17} />
-                {t('home.search_btn')}
-              </Button>
-            </form>
-
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-6">
-              <Link
-                to="/jobs"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:gap-2.5 transition-all"
-              >
-                {t('home.cta_find')} <ArrowRight size={16} />
-              </Link>
-              <span className="hidden sm:block w-px h-4 bg-border-strong" />
-              <Link
-                to="/provider/login"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-secondary hover:text-brand-deep transition-colors"
-              >
-                <Building2 size={16} /> {t('home.cta_post')}
-              </Link>
-            </div>
           </div>
 
-          {/* ---- Image column ---- */}
-          <div className="relative hidden lg:block animate-fade-up" style={{ animationDelay: '120ms' }}>
-            <div className="relative rounded-[26px] overflow-hidden shadow-deep aspect-[4/5]">
-              <img
-                src={HERO_IMG}
-                alt="Two colleagues in conversation during a job interview"
-                className="w-full h-full object-cover"
-                loading="eager"
+          {/* ---- Search ---- */}
+          <form
+            onSubmit={handleSearch}
+            className="mt-8 mx-auto max-w-3xl bg-bg-surface border border-border-subtle rounded-[18px]
+              shadow-lift p-2 flex flex-col sm:flex-row gap-2 animate-fade-up"
+            style={{ animationDelay: '80ms' }}
+          >
+            <div className="relative flex-1 min-w-0">
+              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t('home.search_role')}
+                aria-label={t('home.search_role')}
+                className="w-full h-[52px] pl-11 pr-3 bg-transparent rounded-input text-text-primary
+                  placeholder:text-text-muted focus:outline-none"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-brand-deeper/55 via-transparent to-transparent" />
             </div>
 
-            {/* Secondary photo, offset */}
-            <div className="absolute -left-10 bottom-16 w-40 h-40 rounded-2xl overflow-hidden shadow-lift border-4 border-bg-primary hidden xl:block">
-              <img src={HERO_IMG_2} alt="Professional at work" className="w-full h-full object-cover" loading="lazy" />
+            {/* A real divider rather than a border on the input, so it reads as
+                one control split in two rather than two stacked boxes. */}
+            <span className="hidden sm:block w-px my-2 bg-border-subtle" aria-hidden="true" />
+
+            <div className="relative flex-1 min-w-0 sm:max-w-[14rem]">
+              <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+              <input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                list="hero-cities"
+                placeholder={t('home.search_city')}
+                aria-label={t('home.search_city')}
+                className="w-full h-[52px] pl-11 pr-3 bg-transparent rounded-input text-text-primary
+                  placeholder:text-text-muted focus:outline-none"
+              />
+              <datalist id="hero-cities">
+                {cities.map((c) => <option key={c} value={c} />)}
+              </datalist>
             </div>
 
-            {/* Floating proof cards — these demo the actual product */}
-            <div className="absolute -right-5 top-12 bg-bg-surface rounded-2xl shadow-lift border border-border-subtle p-4 w-52 animate-fade-up"
-                 style={{ animationDelay: '350ms' }}>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">
-                  {t('home.float_match')}
-                </span>
-                <span className="text-xl font-extrabold text-brand-deep">96%</span>
-              </div>
-              <div className="h-1.5 bg-bg-elevated rounded-full mt-2.5 overflow-hidden">
-                <div className="h-full w-[96%] bg-brand-green rounded-full" />
-              </div>
-              <p className="text-[11px] text-text-secondary mt-2.5 leading-snug">
-                {t('home.float_match_sub')}
-              </p>
-            </div>
+            <Button type="submit" variant="primary" size="lg" className="sm:w-auto shrink-0">
+              <Search size={17} />
+              {t('home.search_btn')}
+            </Button>
+          </form>
 
-            <div className="absolute -left-4 top-1/3 bg-bg-surface rounded-2xl shadow-lift border border-border-subtle px-4 py-3 flex items-center gap-2.5 animate-fade-up"
-                 style={{ animationDelay: '500ms' }}>
-              <span className="w-8 h-8 rounded-full bg-brand-green grid place-items-center">
-                <Trophy size={15} className="text-brand-ink" />
+          {/* Popular cities, taken from the vacancies that are actually live —
+              a shortcut that cannot advertise a city with nothing in it. */}
+          {cities.length > 0 && (
+            <div
+              className="mt-4 flex flex-wrap items-center justify-center gap-2 animate-fade-up"
+              style={{ animationDelay: '140ms' }}
+            >
+              <span className="text-xs font-bold uppercase tracking-[0.12em] text-text-muted mr-1">
+                {t('home.hero_popular')}
               </span>
-              <div>
-                <div className="text-xs font-bold text-text-primary">{t('home.float_hired')}</div>
-                <div className="text-[11px] text-text-muted">{t('home.float_hired_sub')}</div>
-              </div>
+              {cities.slice(0, 5).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => { setCity(c); runSearch({ city: c }); }}
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-pill text-xs font-semibold
+                    bg-bg-surface border border-border-subtle text-text-secondary
+                    hover:border-brand-green/50 hover:text-brand-deep hover:shadow-card transition-all"
+                >
+                  <MapPin size={12} /> {c}
+                </button>
+              ))}
             </div>
+          )}
+
+          <p
+            className="mt-5 text-center text-sm text-text-muted animate-fade-up"
+            style={{ animationDelay: '200ms' }}
+          >
+            {t('home.hero_trust')}
+          </p>
+
+          {/* ---- The product, standing in for a photograph ---- */}
+          <div className="mt-10 lg:mt-md animate-fade-up" style={{ animationDelay: '260ms' }}>
+            <MatchPreview t={t} />
           </div>
         </div>
       </section>
 
-      {/* ================================================== TRUSTED BY */}
-      {companies.length > 0 && (
-        <section className="border-y border-border-subtle bg-bg-surface">
-          <div className="max-w-7xl mx-auto px-6 py-10">
-            <p className="text-center text-xs font-bold uppercase tracking-[0.16em] text-text-muted">
-              {t('home.trusted_title')}
-            </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-              {companies.map((c) => (
-                <Link
-                  key={c._id}
-                  to={`/companies/${c._id}`}
-                  className="group flex items-start gap-3.5 p-4 rounded-card border border-border-subtle
-                    bg-bg-primary hover:border-brand-green/45 hover:shadow-card transition-all duration-200"
-                >
-                  {c.logoUrl ? (
-                    <img
-                      src={`${API_ORIGIN}${c.logoUrl}`}
-                      alt={`${c.name} logo`}
-                      loading="lazy"
-                      className="w-12 h-12 rounded-xl object-cover border border-border-subtle shrink-0"
-                    />
-                  ) : (
-                    <CompanyLogo name={c.name} size="md" />
-                  )}
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-text-primary truncate group-hover:text-brand-deep transition-colors">
-                        {c.name}
-                      </span>
-                      {c.isVerified && <ShieldCheck size={13} className="text-success shrink-0" />}
-                    </div>
-                    <p className="text-[11px] text-text-muted truncate">{c.industry}</p>
-                    <p className="text-[11px] font-semibold text-brand-deep mt-1">
-                      {c.openRoles} {c.openRoles === 1 ? t('home.open_role') : t('home.open_roles')}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+      {/* ================================================== HIRING NOW */}
+      {companies.length > 0 && <EmployerWall companies={companies} t={t} />}
 
       {/* ================================================== HOW IT WORKS */}
       <HowItWorks t={t} />
@@ -283,17 +231,31 @@ const Home = () => {
       <section className="bg-bg-surface border-y border-border-subtle">
         <div className="section">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <span className="eyebrow">{t('home.why_eyebrow')}</span>
-            <h2 className="font-display text-4xl font-semibold text-text-primary mt-4">
+            <span className="eyebrow justify-center">{t('home.why_eyebrow')}</span>
+            <div className="rule-ochre mt-3 mb-4 mx-auto" />
+            <h2 className="font-display text-4xl font-semibold text-text-primary leading-tight">
               {t('home.why_title')}
             </h2>
+            <p className="text-text-secondary mt-4 leading-relaxed">{t('home.why_sub')}</p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <ValueProp icon={Target} title={t('home.why_1_t')} body={t('home.why_1_d')} />
-            <ValueProp icon={BadgeDollarSign} title={t('home.why_2_t')} body={t('home.why_2_d')} />
-            <ValueProp icon={ShieldCheck} title={t('home.why_3_t')} body={t('home.why_3_d')} />
-            <ValueProp icon={Languages} title={t('home.why_4_t')} body={t('home.why_4_d')} />
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            <ValueProp
+              index={1} icon={Target}
+              title={t('home.why_1_t')} body={t('home.why_1_d')} meta={t('home.why_1_m')}
+            />
+            <ValueProp
+              index={2} icon={BadgeDollarSign}
+              title={t('home.why_2_t')} body={t('home.why_2_d')} meta={t('home.why_2_m')}
+            />
+            <ValueProp
+              index={3} icon={ShieldCheck}
+              title={t('home.why_3_t')} body={t('home.why_3_d')} meta={t('home.why_3_m')}
+            />
+            <ValueProp
+              index={4} icon={Languages}
+              title={t('home.why_4_t')} body={t('home.why_4_d')} meta={t('home.why_4_m')}
+            />
           </div>
         </div>
       </section>
@@ -346,16 +308,307 @@ const Home = () => {
   );
 };
 
-/* ------------------------------------------------------------------ */
+/* ==================================================================== */
+/*  The hero visual — the product, not a photograph                     */
+/* ==================================================================== */
 
-const ValueProp = ({ icon: Icon, title, body }) => (
-  <div className="p-6 rounded-card border border-border-subtle bg-bg-primary hover:border-brand-green/40 hover:shadow-card transition-all duration-200">
-    <span className="w-11 h-11 rounded-xl bg-brand-muted grid place-items-center">
-      <Icon size={20} className="text-brand-deep" />
-    </span>
-    <h3 className="font-bold text-text-primary mt-4">{title}</h3>
-    <p className="text-sm text-text-secondary mt-2 leading-relaxed">{body}</p>
-  </div>
+/**
+ * A worked example of the thing Fursad actually does: one candidate, one
+ * vacancy, and the arithmetic between them.
+ *
+ * It replaced two stock photographs of strangers in an office, which said
+ * nothing about the product and — being remote images — went blank whenever
+ * the connection did. This renders from the design tokens, so it is offline-
+ * safe and cannot drift away from the rest of the page.
+ *
+ * The score is COMPUTED from the factors below using the engine's own
+ * weights, exactly as the server does it. Nothing here is a typed-in number:
+ * a page that argues the scoring is honest cannot itself display a decorative
+ * one, which is the mistake the old floating "96%" card made.
+ */
+const WEIGHTS = { skills: 45, location: 20, salary: 15, education: 10, experience: 10 };
+
+const SAMPLE = [
+  { key: 'skills',     value: 92 },
+  { key: 'location',   value: 100 },
+  { key: 'salary',     value: 100 },
+  { key: 'education',  value: 100 },
+  { key: 'experience', value: 60 },
+];
+
+const SAMPLE_SCORE = Math.round(
+  SAMPLE.reduce((sum, f) => sum + f.value * WEIGHTS[f.key], 0) / 100
+);
+
+const MatchPreview = ({ t }) => {
+  const R = 34;
+  const C = 2 * Math.PI * R;
+
+  return (
+    <div className="relative max-w-4xl mx-auto">
+      <div className="absolute inset-x-8 -bottom-3 h-10 bg-brand-deep/10 blur-2xl rounded-full" aria-hidden="true" />
+
+      <div className="relative bg-bg-surface border border-border-subtle rounded-[22px] shadow-deep overflow-hidden">
+        {/* Header strip */}
+        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3 border-b border-border-subtle bg-bg-primary">
+          <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-text-muted">
+            <Sparkles size={13} className="text-brand-deep" />
+            {t('home.mp_title')}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-text-muted">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-green" />
+            {t('home.mp_computed')}
+          </span>
+        </div>
+
+        <div className="p-5 sm:p-6">
+          {/* Candidate → score → role */}
+          <div className="grid sm:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-5 items-center">
+            {/* Candidate */}
+            <article className="rounded-card border border-border-subtle bg-bg-primary p-4">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">
+                {t('home.mp_candidate')}
+              </span>
+              <div className="flex items-center gap-3 mt-2.5">
+                <span className="w-11 h-11 rounded-xl bg-brand-deep text-white grid place-items-center font-bold text-sm shrink-0">
+                  AY
+                </span>
+                <div className="min-w-0">
+                  <div className="font-bold text-text-primary text-sm truncate">Amina Y.</div>
+                  <div className="text-[11px] text-text-muted truncate">Mogadishu · 4 yrs</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {['Node.js', 'MongoDB', 'Express', '+4'].map((s) => (
+                  <span
+                    key={s}
+                    className="px-2 py-0.5 rounded-pill bg-brand-muted text-brand-deep text-[10px] font-semibold"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </article>
+
+            {/* Score */}
+            <div className="flex sm:flex-col items-center justify-center gap-3 sm:gap-2 py-1">
+              <ArrowRightLeft size={15} className="text-border-strong sm:hidden" />
+              <div className="relative w-[80px] h-[80px] shrink-0">
+                <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90" aria-hidden="true">
+                  <circle cx="40" cy="40" r={R} fill="none" strokeWidth="7"
+                    className="stroke-bg-elevated" />
+                  <circle
+                    cx="40" cy="40" r={R} fill="none" strokeWidth="7" strokeLinecap="round"
+                    strokeDasharray={C} strokeDashoffset={C * (1 - SAMPLE_SCORE / 100)}
+                    className="stroke-brand-green"
+                  />
+                </svg>
+                <div className="absolute inset-0 grid place-items-center">
+                  <span className="font-display text-xl font-semibold text-brand-deep leading-none">
+                    {SAMPLE_SCORE}%
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">
+                {t('home.mp_match')}
+              </span>
+            </div>
+
+            {/* Role */}
+            <article className="rounded-card border border-border-subtle bg-bg-primary p-4">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">
+                {t('home.mp_role')}
+              </span>
+              <div className="flex items-center gap-3 mt-2.5">
+                <span className="w-11 h-11 rounded-xl bg-accent-ochre text-brand-ink grid place-items-center shrink-0">
+                  <Briefcase size={18} />
+                </span>
+                <div className="min-w-0">
+                  <div className="font-bold text-text-primary text-sm truncate">Backend Developer</div>
+                  <div className="text-[11px] text-text-muted truncate">Mogadishu · full-time</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                <span className="px-2 py-0.5 rounded-pill bg-accent-ochreMuted text-accent-ochreInk text-[10px] font-semibold">
+                  $900 – $1,600
+                </span>
+                <span className="px-2 py-0.5 rounded-pill bg-bg-elevated text-text-secondary text-[10px] font-semibold">
+                  Bachelor
+                </span>
+              </div>
+            </article>
+          </div>
+
+          {/* The breakdown — this is the part that makes the number checkable */}
+          <div className="mt-5 pt-5 border-t border-border-subtle">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">
+              {t('home.mp_why')}
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-3 mt-3">
+              {SAMPLE.map((f) => (
+                <div key={f.key}>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="text-[11px] font-semibold text-text-secondary truncate">
+                      {t(`home.f_${f.key}`)}
+                    </span>
+                    <span className="text-[10px] font-bold text-text-muted shrink-0">
+                      {WEIGHTS[f.key]}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-bg-elevated mt-1.5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${f.value >= 80 ? 'bg-brand-green' : 'bg-accent-ochre'}`}
+                      style={{ width: `${f.value}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ==================================================================== */
+/*  Employers hiring now                                                */
+/* ==================================================================== */
+
+/**
+ * This used to be a bare strip of logos under a small grey label, floating
+ * with no header and no explanation of what the reader was looking at. It is
+ * now a section like any other — eyebrow, rule, heading, a sentence saying
+ * why these particular employers are here — and each card ends on the one
+ * fact that matters to a candidate: how many roles are actually open.
+ */
+const EmployerWall = ({ companies, t }) => (
+  <section className="bg-bg-surface border-y border-border-subtle">
+    <div className="section">
+      <div className="flex flex-wrap items-end justify-between gap-6 mb-10">
+        <div className="max-w-2xl">
+          <span className="eyebrow">
+            <Building2 size={14} /> {t('home.trusted_eyebrow')}
+          </span>
+          <div className="rule-ochre mt-3 mb-4" />
+          <h2 className="font-display text-4xl font-semibold text-text-primary leading-tight">
+            {t('home.trusted_title')}
+          </h2>
+          <p className="text-text-secondary mt-3 leading-relaxed">
+            {t('home.trusted_sub')}
+          </p>
+        </div>
+
+        <Link
+          to="/jobs"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:gap-2.5 transition-all"
+        >
+          {t('home.trusted_all')} <ArrowRight size={16} />
+        </Link>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {companies.map((c) => (
+          <Link
+            key={c._id}
+            to={`/companies/${c._id}`}
+            className="group flex flex-col h-full p-5 rounded-card border border-border-subtle
+              bg-bg-primary hover:border-brand-green/45 hover:shadow-lift
+              hover:-translate-y-0.5 transition-all duration-200"
+          >
+            <div className="flex items-start gap-3.5">
+              {c.logoUrl ? (
+                <img
+                  src={`${API_ORIGIN}${c.logoUrl}`}
+                  alt={`${c.name} logo`}
+                  loading="lazy"
+                  className="w-12 h-12 rounded-xl object-cover border border-border-subtle shrink-0"
+                />
+              ) : (
+                <CompanyLogo name={c.name} size="md" />
+              )}
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-text-primary truncate group-hover:text-brand-deep transition-colors">
+                    {c.name}
+                  </span>
+                  {c.isVerified && (
+                    <ShieldCheck size={14} className="text-success shrink-0" aria-label={t('home.verified')} />
+                  )}
+                </div>
+                {c.industry && (
+                  <p className="text-xs text-text-muted truncate mt-0.5">{c.industry}</p>
+                )}
+              </div>
+            </div>
+
+            {c.location?.city && (
+              <p className="inline-flex items-center gap-1.5 text-xs text-text-muted mt-3">
+                <MapPin size={12} /> {c.location.city}
+              </p>
+            )}
+
+            {/* mt-auto pins the footer, so cards of different heights still
+                line up along their most important row. */}
+            <div className="flex items-center justify-between gap-2 mt-auto pt-4">
+              <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-pill
+                bg-brand-muted text-brand-deep text-[11px] font-bold">
+                <Briefcase size={11} />
+                {c.openRoles} {c.openRoles === 1 ? t('home.open_role') : t('home.open_roles')}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-text-muted
+                group-hover:text-brand-deep group-hover:gap-1.5 transition-all">
+                {t('home.view_profile')} <ArrowRight size={12} />
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+/* ==================================================================== */
+
+/**
+ * Each card carries a claim and, under a rule, the mechanism that makes the
+ * claim true. The plain version stated four benefits any job board could
+ * print; the number and the mechanism line are what turn them into something
+ * specific to this product.
+ */
+const ValueProp = ({ icon: Icon, index, title, body, meta }) => (
+  <article
+    className="group relative flex flex-col h-full p-6 rounded-card bg-bg-primary
+      border border-border-subtle hover:border-brand-green/45 hover:shadow-lift
+      hover:-translate-y-0.5 transition-all duration-200"
+  >
+    <span
+      className="absolute left-6 right-6 top-0 h-[3px] rounded-full bg-transparent
+        group-hover:bg-brand-green/70 transition-colors duration-200"
+      aria-hidden="true"
+    />
+
+    <div className="flex items-start justify-between gap-3">
+      <span className="w-12 h-12 rounded-xl bg-brand-muted border border-brand-green/20 grid place-items-center shrink-0">
+        <Icon size={21} className="text-brand-deep" />
+      </span>
+      <span
+        className="font-display text-3xl font-semibold text-border-strong
+          group-hover:text-brand-green/50 transition-colors duration-200 leading-none"
+        aria-hidden="true"
+      >
+        {String(index).padStart(2, '0')}
+      </span>
+    </div>
+
+    <h3 className="font-bold text-lg text-text-primary mt-5 leading-snug">{title}</h3>
+    <p className="text-sm text-text-secondary mt-2 leading-relaxed flex-1">{body}</p>
+
+    <p className="mt-5 pt-4 border-t border-border-subtle text-xs font-semibold text-accent-ochreInk leading-snug">
+      {meta}
+    </p>
+  </article>
 );
 
 const EmptyJobs = ({ t }) => (
@@ -385,8 +638,9 @@ const HowItWorks = ({ t }) => {
   return (
     <section className="section">
       <div className="text-center max-w-2xl mx-auto mb-16">
-        <span className="eyebrow">{t('home.how_eyebrow')}</span>
-        <h2 className="font-display text-4xl sm:text-[2.75rem] font-semibold text-text-primary mt-4 leading-tight">
+        <span className="eyebrow justify-center">{t('home.how_eyebrow')}</span>
+        <div className="rule-ochre mt-3 mb-4 mx-auto" />
+        <h2 className="font-display text-4xl sm:text-[2.75rem] font-semibold text-text-primary leading-tight">
           {t('home.how_title')}
         </h2>
         <p className="text-text-secondary mt-3">{t('home.how_sub')}</p>
@@ -450,8 +704,9 @@ const Faq = ({ t }) => {
     <section className="section pt-0">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-10">
-          <span className="eyebrow">{t('home.faq_eyebrow')}</span>
-          <h2 className="font-display text-4xl font-semibold text-text-primary mt-4">
+          <span className="eyebrow justify-center">{t('home.faq_eyebrow')}</span>
+          <div className="rule-ochre mt-3 mb-4 mx-auto" />
+          <h2 className="font-display text-4xl font-semibold text-text-primary">
             {t('home.faq_title')}
           </h2>
         </div>

@@ -16,6 +16,11 @@ const ProfileBuilder = () => {
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  // The question-and-answer pair currently in flight. Without it the typed
+  // answer disappears the moment Send is pressed — it has left the input but
+  // has not yet come back in `history` — and the next question then appears
+  // out of nowhere several seconds later.
+  const [pending, setPending] = useState(null);
   const [error, setError] = useState('');
   const endRef = useRef(null);
 
@@ -38,23 +43,26 @@ const ProfileBuilder = () => {
   const send = async (e) => {
     e.preventDefault();
     if (!answer.trim() || sending) return;
+    const submitted = answer.trim();
 
     setSending(true);
+    setPending({ question: state.question, answer: submitted });
+    setAnswer('');
     setError('');
     try {
       const res = await api.post('/profile/interview', {
         field: state.field,
         question: state.question,
-        answer: answer.trim(),
+        answer: submitted,
       });
-      if (res.data?.success) {
-        setState(res.data.data);
-        setAnswer('');
-      }
+      if (res.data?.success) setState(res.data.data);
     } catch (err) {
+      // Hand the answer back so it is not lost to a failed request.
+      setAnswer(submitted);
       setError(err.response?.data?.message || 'Could not save that answer.');
     } finally {
       setSending(false);
+      setPending(null);
     }
   };
 
@@ -140,7 +148,7 @@ const ProfileBuilder = () => {
             </div>
           ))}
 
-          {!state?.done && state?.question && (
+          {!state?.done && state?.question && !pending && (
             <div className="flex gap-3">
               <span className="w-7 h-7 rounded-full bg-brand-muted grid place-items-center shrink-0 mt-0.5">
                 <Sparkles size={13} className="text-brand-deep" />
@@ -148,6 +156,46 @@ const ProfileBuilder = () => {
               <p className="text-[15px] font-medium text-text-primary leading-relaxed pt-0.5">
                 {state.question}
               </p>
+            </div>
+          )}
+
+          {/* The pair being saved right now, shown exactly like a finished one
+              so the conversation never appears to lose a turn. */}
+          {pending && (
+            <div>
+              <div className="flex gap-3">
+                <span className="w-7 h-7 rounded-full bg-brand-muted grid place-items-center shrink-0 mt-0.5">
+                  <Sparkles size={13} className="text-brand-deep" />
+                </span>
+                <p className="text-sm text-text-secondary leading-relaxed pt-1">{pending.question}</p>
+              </div>
+              <div className="flex justify-end mt-2">
+                <p className="text-sm bg-brand-deep text-text-inverse rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[80%]">
+                  {pending.answer}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Gemini writes each question from the answer before it, which takes
+              a couple of seconds. This is what fills that gap. */}
+          {sending && (
+            <div className="flex gap-3" role="status" aria-live="polite">
+              <span className="w-7 h-7 rounded-full bg-brand-muted grid place-items-center shrink-0 mt-0.5">
+                <Sparkles size={13} className="text-brand-deep" />
+              </span>
+              <span className="inline-flex items-center gap-2.5 pt-1.5">
+                <span className="flex gap-1" aria-hidden="true">
+                  {[0, 150, 300].map((d) => (
+                    <span
+                      key={d}
+                      className="w-1.5 h-1.5 rounded-full bg-brand-deep/45 animate-bounce"
+                      style={{ animationDelay: `${d}ms` }}
+                    />
+                  ))}
+                </span>
+                <span className="text-sm text-text-muted">Thinking about your next question…</span>
+              </span>
             </div>
           )}
 
@@ -167,16 +215,16 @@ const ProfileBuilder = () => {
                 text-text-primary placeholder:text-text-muted focus:outline-none
                 focus:border-brand-green focus:ring-4 focus:ring-brand-green/18 transition-all"
             />
-            <Button type="submit" variant="primary" disabled={sending || !answer.trim()}>
-              <Send size={16} /> {sending ? 'Saving…' : 'Send'}
+            <Button type="submit" variant="primary" loading={sending} disabled={!answer.trim()}>
+              {!sending && <Send size={16} />} {sending ? 'Saving…' : 'Send'}
             </Button>
           </form>
         ) : (
           <div className="flex items-center gap-2 mt-6 pt-5 border-t border-border-subtle">
             <CheckCircle2 size={18} className="text-success" />
             <p className="text-sm font-semibold text-text-primary">All questions answered.</p>
-            <Button size="sm" variant="secondary" className="ml-auto" onClick={regenerate} disabled={sending}>
-              <RefreshCw size={14} /> Regenerate
+            <Button size="sm" variant="secondary" className="ml-auto" onClick={regenerate} loading={sending}>
+              {!sending && <RefreshCw size={14} />} {sending ? 'Regenerating…' : 'Regenerate'}
             </Button>
           </div>
         )}

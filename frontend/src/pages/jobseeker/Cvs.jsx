@@ -6,6 +6,7 @@ import {
   AlertTriangle, CheckCircle2, Target, Lock,
 } from 'lucide-react';
 import api from '../../services/api';
+import { Spinner } from '../../components/ui/Spinner';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
@@ -154,12 +155,23 @@ const Cvs = () => {
             } ${uploading ? 'opacity-60 pointer-events-none' : ''}`}
         >
           <span className="w-14 h-14 rounded-2xl bg-brand-muted grid place-items-center mx-auto">
-            <UploadCloud size={26} className="text-brand-deep" />
+            {uploading
+              ? <Spinner size="lg" className="text-brand-deep" />
+              : <UploadCloud size={26} className="text-brand-deep" />}
           </span>
-          <p className="font-semibold text-text-primary mt-4">
+          {/* The upload itself is quick; the wait is Gemini reading the
+              document. Saying so is the difference between "slow" and
+              "broken". */}
+          <p
+            className="font-semibold text-text-primary mt-4"
+            role={uploading ? 'status' : undefined}
+            aria-live={uploading ? 'polite' : undefined}
+          >
             {uploading ? t('cvs.uploading') : t('cvs.drop_title')}
           </p>
-          <p className="text-sm text-text-muted mt-1">{t('cvs.drop_sub')}</p>
+          <p className="text-sm text-text-muted mt-1">
+            {uploading ? t('cvs.uploading_sub') : t('cvs.drop_sub')}
+          </p>
 
           <input
             ref={fileRef}

@@ -245,7 +245,7 @@ const Jobs = () => {
                       key={a.status}
                       variant={a.variant}
                       className="h-9 text-xs gap-1.5 mt-3"
-                      disabled={busy === job._id}
+                      loading={busy === job._id}
                       onClick={() => run(job, a)}
                     >
                       {busy === job._id ? <Loader2 size={13} className="animate-spin" /> : <a.icon size={13} />}
@@ -297,7 +297,7 @@ const Jobs = () => {
               <Button
                 variant={pending.action.status === 'flagged' ? 'danger' : 'primary'}
                 fullWidth
-                disabled={busy === pending.job._id}
+                loading={busy === pending.job._id}
                 onClick={() => apply(pending.job, pending.action, note.trim())}
               >
                 {busy === pending.job._id ? 'Working...' : pending.action.label}

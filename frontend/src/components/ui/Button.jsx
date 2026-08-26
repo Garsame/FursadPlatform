@@ -1,4 +1,5 @@
 import React from 'react';
+import { Loader2 } from 'lucide-react';
 
 /**
  * Variants map to intent, not colour:
@@ -6,6 +7,13 @@ import React from 'react';
  *   deep     — strong secondary, or primary when sitting on paper next to green.
  *   onDeep   — for use inside evergreen bands where primary would vibrate.
  *   secondary/ghost/danger — supporting roles.
+ *
+ * `loading` is the button's own busy state: it shows a spinner before the
+ * label and blocks further clicks. It lives here rather than at each call site
+ * because almost every action on Fursad waits on something slow — a Gemini
+ * call, an outbound email, a fan-out of notifications — and a button that
+ * looks idle while that happens is the single most common reason a person
+ * presses it twice.
  */
 const Button = ({
   children,
@@ -14,6 +22,7 @@ const Button = ({
   size = 'md',
   className = '',
   disabled = false,
+  loading = false,
   onClick,
   fullWidth = false,
   ...props
@@ -26,6 +35,8 @@ const Button = ({
     md: 'h-btn px-5 text-sm',
     lg: 'h-12 px-7 text-base',
   };
+
+  const spinnerSize = size === 'lg' ? 17 : size === 'sm' ? 14 : 16;
 
   const variants = {
     // White text on #00C27C fails WCAG, so ink text is deliberate here.
@@ -41,10 +52,14 @@ const Button = ({
     <button
       type={type}
       className={`${baseStyle} ${sizes[size]} ${variants[variant]} ${fullWidth ? 'w-full' : ''} ${className}`}
-      disabled={disabled}
+      // A loading button is never also clickable — otherwise the same request
+      // fires twice and, on a status change, writes two audit entries.
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       onClick={onClick}
       {...props}
     >
+      {loading && <Loader2 size={spinnerSize} className="animate-spin shrink-0" aria-hidden="true" />}
       {children}
     </button>
   );

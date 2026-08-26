@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
+import { Spinner } from '../../components/ui/Spinner';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -122,18 +123,25 @@ const Verify = () => {
             className="text-center font-mono text-xl tracking-[0.5em]"
           />
 
-          <Button type="submit" variant="primary" fullWidth disabled={loading}>
+          <Button type="submit" variant="primary" fullWidth loading={loading}>
             {loading ? 'Verifying...' : t('auth.otp_btn')}
           </Button>
         </form>
 
         <div className="text-center mt-6 text-sm text-text-secondary">
+          {/* A link-styled native button, not the Button component — so the
+              spinner is placed by hand. `resending` has to keep disabling it:
+              the server allows only 8 outbound emails per 10 minutes, and a
+              second click would spend one of them for nothing. */}
           <button
+            type="button"
             onClick={handleResend}
             disabled={resending || cooldown > 0}
-            className="text-brand-deep hover:underline font-semibold disabled:text-text-muted
-              disabled:no-underline disabled:cursor-not-allowed"
+            aria-busy={resending || undefined}
+            className="inline-flex items-center gap-2 text-brand-deep hover:underline font-semibold
+              disabled:text-text-muted disabled:no-underline disabled:cursor-not-allowed"
           >
+            {resending && <Spinner size="xs" />}
             {resending
               ? t('auth.otp_resending')
               : cooldown > 0

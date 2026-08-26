@@ -222,7 +222,7 @@ const PostJob = () => {
 
             {aiError && <span className="text-xs text-danger block mb-2">{aiError}</span>}
 
-            <Button variant="primary" onClick={handleGenerateAI} disabled={aiGenerating || !aiPrompts.responsibilities}>
+            <Button variant="primary" onClick={handleGenerateAI} loading={aiGenerating} disabled={!aiPrompts.responsibilities}>
               {aiGenerating ? 'Generating Description...' : 'Draft Description with AI'}
             </Button>
           </Card>
@@ -338,7 +338,7 @@ const PostJob = () => {
             <Button variant="secondary" className="gap-2" onClick={() => setStep(2)}>
               <ArrowLeft size={16} /> Back
             </Button>
-            <Button variant="primary" className="gap-2" onClick={handleSubmit} disabled={loading}>
+            <Button variant="primary" className="gap-2" onClick={handleSubmit} loading={loading}>
               <Send size={16} /> {loading ? 'Publishing...' : 'Publish Job Listing'}
             </Button>
           </div>

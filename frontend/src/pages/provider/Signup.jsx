@@ -117,7 +117,7 @@ const Signup = () => {
             required
           />
 
-          <Button type="submit" variant="primary" fullWidth disabled={loading}>
+          <Button type="submit" variant="primary" fullWidth loading={loading}>
             {loading ? 'Creating Recruiter Profile...' : 'Register Company'}
           </Button>
         </form>

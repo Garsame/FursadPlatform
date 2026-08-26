@@ -108,7 +108,7 @@ const Signup = () => {
             required
           />
 
-          <Button type="submit" variant="danger" fullWidth disabled={loading}>
+          <Button type="submit" variant="danger" fullWidth loading={loading}>
             {loading ? 'Authorizing Profile...' : 'Complete Admin Registration'}
           </Button>
         </form>

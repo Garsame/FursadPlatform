@@ -47,7 +47,8 @@
     "delete_confirm_sub": "Tan dib looma celin karo.",
     "cancel": "Jooji",
     "confirm_delete": "Haa, tirtir",
-    "used_in_apps": "Waa la diray codsiyo, sidaas darteed waa xiran yahay"
+    "used_in_apps": "Waa la diray codsiyo, sidaas darteed waa xiran yahay",
+    "uploading_sub": "AI-ga ayaa akhrinaya CV-gaaga — badanaa waxay qaadataa dhowr ilbiriqsi."
   },
   "seekerjobs": {
     "tab_all": "Dhammaan shaqooyinka",
@@ -137,7 +138,30 @@
     "faq_3_q": "Ma u baahanahay CV si aan isu diiwaangeliyo?",
     "faq_3_a": "Way caawineysaa laakiin looma baahna. Waxaad soo gelin kartaa qoraalka CV-gaaga si toos ah loo kala saaro, ama gacanta ku buuxi profile-kaaga.",
     "faq_4_q": "Sidee ku ogaanayaa in shaqadu run tahay?",
-    "faq_4_a": "Shaqo kasta waxaa si toos ah loogu hubiyaa calaamadaha khiyaanada iyo tayada ka hor inta aan la soo bandhigin. Wax kasta oo dhibco liita hela ama calaamad keena waxaa eega maamule bini'aadam ah."
+    "faq_4_a": "Shaqo kasta waxaa si toos ah loogu hubiyaa calaamadaha khiyaanada iyo tayada ka hor inta aan la soo bandhigin. Wax kasta oo dhibco liita hela ama calaamad keena waxaa eega maamule bini'aadam ah.",
+    "hero_popular": "Caan ah",
+    "hero_trust": "Bilaash u ah shaqo-doonayaasha · Soomaali iyo Ingiriisi · Shaqo kasta waa la eegaa ka hor inta aan la soo bandhigin",
+    "mp_title": "Tusaale isbarbardhig",
+    "mp_computed": "Waa la xisaabiyay, lama qiyaasin",
+    "mp_candidate": "Musharrax",
+    "mp_role": "Shaqo furan",
+    "mp_match": "Isbarbardhig",
+    "mp_why": "Sababta qiimahan",
+    "f_skills": "Xirfado",
+    "f_location": "Goobta",
+    "f_salary": "Mushahar",
+    "f_education": "Waxbarasho",
+    "f_experience": "Khibrad",
+    "trusted_eyebrow": "Hadda way shaqaaleysiinayaan",
+    "trusted_sub": "Shaqo-bixiye kasta oo halkan ku jira wuxuu leeyahay ugu yaraan hal shaqo oo furan oo la eegay, iyo profile shirkadeed oo aad akhrisan karto ka hor intaadan go'aansan inaad codsato.",
+    "trusted_all": "Fiiri dhammaan shaqooyinka furan",
+    "verified": "La xaqiijiyay",
+    "view_profile": "Fiiri profile-ka",
+    "why_sub": "Afar shay oo beddelaya waxa dhab ahaan dhaca marka aad codsato. Mid kastaa waa xeer ku shaqeeya barnaamijka, ma aha ballanqaad bog ku qoran.",
+    "why_1_m": "Xirfaduhu waa 45% qiimayn kasta — qaybta keliya ee ugu culus",
+    "why_2_m": "Isku-beegidda mushaharku waxay qiimo u leedahay 15% isbarbardhigga",
+    "why_3_m": "Waxba ma gaari karaan bogga dadweynaha inta uusan qof ansixin",
+    "why_4_m": "Bedel luqadda bog kasta, wakhti kasta"
   },
   "jobs": {
     "eyebrow": "Guddiga shaqada",
@@ -238,7 +262,9 @@
     "reset_mismatch": "Sirahaasi isku mid ma aha",
     "reset_too_short": "Sirta waa inay ugu yaraan 8 xaraf tahay",
     "reset_back": "Isticmaal emayl kale",
-    "back_to_signin": "Ku noqo gelitaanka"
+    "back_to_signin": "Ku noqo gelitaanka",
+    "show_password": "Muuji furaha sirta",
+    "hide_password": "Qari furaha sirta"
   },
   "footer": {
     "blurb": "Fursad wuxuu isku xiraa kartida Soomaaliya iyo Bariga Afrika iyo shaqo-bixiyeyaal shaqaalaysiinaya, isagoo isticmaalaya isbarbardhig AI ah si codsi kastaa u tiro galo.",
