@@ -38,7 +38,7 @@ const AdminLayout = () => {
           {/* Logo Header */}
           <div className="h-navbar border-b border-border-subtle flex items-center px-6 gap-2">
             <Briefcase className="text-brand-green w-6 h-6" />
-            <span className="text-xl font-bold tracking-tight text-brand-green">Fursad</span>
+            <span className="text-xl font-bold tracking-tight text-brand-green">JobAssistAI</span>
             <span className="text-[10px] bg-red-500/20 text-red-500 border border-red-500/35 px-1.5 py-0.5 rounded font-mono uppercase ml-1">Admin</span>
           </div>
 

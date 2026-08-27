@@ -227,7 +227,7 @@ const Home = () => {
         )}
       </section>
 
-      {/* ==================================================== WHY FURSAD */}
+      {/* ==================================================== WHY JOBASSISTAI */}
       <section className="bg-bg-surface border-y border-border-subtle">
         <div className="section">
           <div className="text-center max-w-2xl mx-auto mb-14">
@@ -313,7 +313,7 @@ const Home = () => {
 /* ==================================================================== */
 
 /**
- * A worked example of the thing Fursad actually does: one candidate, one
+ * A worked example of the thing JobAssistAI actually does: one candidate, one
  * vacancy, and the arithmetic between them.
  *
  * It replaced two stock photographs of strangers in an office, which said

@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Companies on Fursad have no uploaded logo yet (there is no company-branding
+ * Companies on JobAssistAI have no uploaded logo yet (there is no company-branding
  * route), so we render a deterministic monogram instead of inventing a mark.
  * Same name always yields the same colour pairing, so the wall looks designed
  * rather than random.

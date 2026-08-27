@@ -44,7 +44,7 @@ const ProviderLayout = () => {
   const Body = () => (
     <>
       <div className="h-navbar border-b border-border-subtle flex items-center px-5 shrink-0">
-        <Link to="/provider/dashboard" aria-label="Fursad"><Logo /></Link>
+        <Link to="/provider/dashboard" aria-label="JobAssistAI"><Logo /></Link>
       </div>
 
       <nav className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-1">

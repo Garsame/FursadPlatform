@@ -54,7 +54,7 @@ const Login = () => {
           <Input
             type="email"
             label="Administrator Email"
-            placeholder="admin@fursad.so"
+            placeholder="admin@jobassistai.garsame.com"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             required

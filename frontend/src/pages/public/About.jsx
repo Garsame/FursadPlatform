@@ -117,7 +117,7 @@ const Hero = ({ stats }) => (
     <div className="max-w-7xl mx-auto px-6 pt-lg pb-md">
       <div className="max-w-3xl animate-fade-up">
         <span className="eyebrow">
-          <Sparkles size={14} /> About Fursad
+          <Sparkles size={14} /> About JobAssistAI
         </span>
 
         <h1 className="font-display text-[2.6rem] sm:text-6xl font-semibold leading-[1.05] text-text-primary mt-5">
@@ -130,7 +130,7 @@ const Hero = ({ stats }) => (
         </h1>
 
         <p className="text-lg text-text-secondary mt-6 max-w-prose leading-relaxed">
-          Fursad is an AI-assisted hiring platform built for Somalia and East Africa. It reads CVs,
+          JobAssistAI is an AI-assisted hiring platform built for Somalia and East Africa. It reads CVs,
           understands skills by meaning rather than spelling, and scores every candidate against
           every vacancy with arithmetic anyone can check. Three separate portals — candidate,
           employer and moderator — run one hiring process from first upload to signed offer.
@@ -226,13 +226,13 @@ const Heading = ({ eyebrow, title, sub, center = false }) => (
 );
 
 /* ==================================================================== */
-/*  1 — What Fursad is                                                  */
+/*  1 — What JobAssistAI is                                                  */
 /* ==================================================================== */
 
 const Overview = () => (
   <section id="overview" className="section scroll-mt-[9rem]">
     <Heading
-      eyebrow="What Fursad is"
+      eyebrow="What JobAssistAI is"
       title="A hiring process, not a noticeboard"
       sub="Somalia has one of the youngest workforces in the world and no shared infrastructure for hiring into it."
     />
@@ -246,7 +246,7 @@ const Overview = () => (
           have nothing whatsoever to do with what they can do.
         </p>
         <p>
-          Fursad closes that gap from both ends at once. A candidate uploads a CV and it is read
+          JobAssistAI closes that gap from both ends at once. A candidate uploads a CV and it is read
           properly, once, into something the platform can reason about. An employer describes a role
           and it reaches everyone who fits it, ranked, with the reasoning attached.
         </p>

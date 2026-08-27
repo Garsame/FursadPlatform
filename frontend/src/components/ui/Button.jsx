@@ -10,7 +10,7 @@ import { Loader2 } from 'lucide-react';
  *
  * `loading` is the button's own busy state: it shows a spinner before the
  * label and blocks further clicks. It lives here rather than at each call site
- * because almost every action on Fursad waits on something slow — a Gemini
+ * because almost every action on JobAssistAI waits on something slow — a Gemini
  * call, an outbound email, a fan-out of notifications — and a button that
  * looks idle while that happens is the single most common reason a person
  * presses it twice.

@@ -574,7 +574,7 @@ const generateCompanyProfile = async (facts) => {
     ].filter(Boolean).join('\n      ') || 'Nothing written yet.';
 
     const prompt = `
-      You are writing the public profile of an employer on Fursad, a job
+      You are writing the public profile of an employer on JobAssistAI, a job
       platform for Somalia and East Africa. A jobseeker reads this to decide
       whether to trust this company with their CV.
 

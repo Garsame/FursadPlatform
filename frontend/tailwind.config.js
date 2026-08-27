@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 
 /**
- * Fursad design system — "Optimistic Professional"
+ * JobAssistAI design system — "Optimistic Professional"
  *
  * Two-tier green instead of one:
  *   brand.deep  (#0B5C43) carries STRUCTURE — nav, headings, footer, dark bands.

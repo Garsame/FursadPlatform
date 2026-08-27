@@ -33,7 +33,7 @@ const Contact = () => {
     <div className="bg-bg-primary text-text-primary py-20 px-6 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
       {/* Contact Details */}
       <div className="flex flex-col justify-center">
-        <h1 className="text-4xl font-extrabold mb-6">Contact Fursad Support</h1>
+        <h1 className="text-4xl font-extrabold mb-6">Contact JobAssistAI Support</h1>
         <p className="text-text-secondary mb-10 leading-relaxed text-base">
           Have an inquiry about platform integration, recruiter API packages, or general usage issues? Shoot us a message or visit our Mogadishu headquarters.
         </p>
@@ -65,7 +65,7 @@ const Contact = () => {
             </div>
             <div>
               <h4 className="font-bold text-text-primary">Email Support</h4>
-              <p className="text-sm">support@fursad.so</p>
+              <p className="text-sm">support@jobassistai.garsame.com</p>
             </div>
           </div>
         </div>

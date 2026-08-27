@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
  * One text field for the whole platform.
  *
  * When `type="password"` it grows a reveal toggle on the right. Every password
- * on Fursad — sign-in, sign-up, the two confirmations, password reset, and the
+ * on JobAssistAI — sign-in, sign-up, the two confirmations, password reset, and the
  * administrator's authorisation token — renders through this component, so the
  * behaviour is defined once and cannot drift between portals.
  *

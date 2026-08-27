@@ -51,7 +51,7 @@ const DashboardLayout = () => {
     <>
       {/* Brand */}
       <div className="h-navbar border-b border-border-subtle flex items-center px-5 shrink-0">
-        <Link to="/" aria-label="Fursad home"><Logo /></Link>
+        <Link to="/" aria-label="JobAssistAI home"><Logo /></Link>
       </div>
 
       {/* Only this list scrolls — the user block below stays pinned. */}

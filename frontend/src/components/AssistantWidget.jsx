@@ -50,7 +50,7 @@ const SUGGESTIONS = [
 
 const GREETING = {
   role: 'assistant',
-  text: 'Hello. I can explain how Fursad works — finding jobs, applying, match scores, or hiring as an employer. What would you like to know?',
+  text: 'Hello. I can explain how JobAssistAI works — finding jobs, applying, match scores, or hiring as an employer. What would you like to know?',
 };
 
 /**
@@ -116,7 +116,7 @@ const AssistantWidget = () => {
       {/* Launcher */}
       <button
         onClick={() => setOpen((o) => !o)}
-        aria-label={open ? 'Close the assistant' : 'Ask the Fursad assistant'}
+        aria-label={open ? 'Close the assistant' : 'Ask the JobAssistAI assistant'}
         className={`fixed bottom-5 right-5 z-40 h-14 w-14 grid place-items-center rounded-full
           shadow-lift transition-all duration-200 ${open
             ? 'bg-bg-surface text-text-secondary border border-border-subtle rotate-90'
@@ -128,7 +128,7 @@ const AssistantWidget = () => {
       {open && (
         <div
           role="dialog"
-          aria-label="Fursad assistant"
+          aria-label="JobAssistAI assistant"
           className="fixed bottom-24 right-5 z-40 w-[380px] max-w-[calc(100vw-2.5rem)]
             bg-bg-surface border border-border-subtle rounded-card shadow-lift
             flex flex-col overflow-hidden animate-fade-up"
@@ -137,7 +137,7 @@ const AssistantWidget = () => {
           <div className="flex items-center gap-2.5 px-4 py-3 bg-brand-deep text-text-inverse shrink-0">
             <Sparkles size={17} className="text-brand-green" />
             <div className="min-w-0">
-              <p className="text-sm font-bold leading-tight">Fursad assistant</p>
+              <p className="text-sm font-bold leading-tight">JobAssistAI assistant</p>
               <p className="text-[11px] text-text-onDeepDim">Here to explain how the platform works</p>
             </div>
           </div>

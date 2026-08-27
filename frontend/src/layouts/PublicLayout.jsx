@@ -65,7 +65,7 @@ const PublicLayout = () => {
         }`}
       >
         <div className="max-w-7xl mx-auto h-full px-6 flex items-center justify-between gap-6">
-          <Link to="/" className="shrink-0" aria-label="Fursad home">
+          <Link to="/" className="shrink-0" aria-label="JobAssistAI home">
             <Logo />
           </Link>
 
@@ -237,7 +237,7 @@ const PublicLayout = () => {
 
           <div className="mt-2xl pt-6 border-t border-border-onDeep flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-text-onDeepDim">
-              &copy; {new Date().getFullYear()} Fursad. {t('footer.rights')}
+              &copy; {new Date().getFullYear()} JobAssistAI. {t('footer.rights')}
             </p>
             <p className="text-xs text-text-onDeepDim">{t('footer.made_in')}</p>
           </div>

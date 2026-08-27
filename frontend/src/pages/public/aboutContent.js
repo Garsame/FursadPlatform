@@ -7,7 +7,7 @@ import {
 import { MATCH_WEIGHTS } from '../../shared/constants';
 
 /**
- * Every word the About page says about Fursad lives here.
+ * Every word the About page says about JobAssistAI lives here.
  *
  * It is separated from the markup for one reason: the page is long by design —
  * it is the only place that explains the whole platform — and mixing this much
@@ -20,7 +20,7 @@ import { MATCH_WEIGHTS } from '../../shared/constants';
  */
 
 export const SECTIONS = [
-  { id: 'overview', label: 'What Fursad is' },
+  { id: 'overview', label: 'What JobAssistAI is' },
   { id: 'how',      label: 'How it works' },
   { id: 'ai',       label: 'The AI chain' },
   { id: 'matching', label: 'Matching' },
@@ -146,7 +146,7 @@ export const JOURNEYS = [
     key: 'admin',
     icon: ShieldCheck,
     label: 'Moderators',
-    lede: 'The reason a vacancy on Fursad means something.',
+    lede: 'The reason a vacancy on JobAssistAI means something.',
     replaces: 'Protects: the credibility of every listing on the site.',
     cta: null,
     steps: [

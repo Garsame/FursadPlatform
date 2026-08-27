@@ -14,7 +14,7 @@ const path = require('path');
  * call into the message "no text could be read from this file" — blaming the
  * candidate's CV for a bug in our code. pdf-parse v2 stopped being a callable
  * function, so `pdfParse(buffer)` threw on every single PDF and every PDF CV
- * uploaded to Fursad was silently marked unreadable. Failures must be loud.
+ * uploaded to JobAssistAI was silently marked unreadable. Failures must be loud.
  */
 const extractText = async (absolutePath, mimeType) => {
   if (mimeType === 'application/pdf') {

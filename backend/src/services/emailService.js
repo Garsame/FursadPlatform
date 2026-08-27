@@ -77,7 +77,7 @@ const shell = (heading, body) => `
   <div style="margin:0;padding:24px;background:#FAF9F6;font-family:Inter,Segoe UI,Arial,sans-serif">
     <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #E7E4DB;border-radius:14px;overflow:hidden">
       <div style="background:#0B5C43;padding:20px 28px">
-        <span style="color:#00C27C;font-size:22px;font-weight:800;letter-spacing:-.5px">Fursad</span>
+        <span style="color:#00C27C;font-size:22px;font-weight:800;letter-spacing:-.5px">JobAssistAI</span>
         <span style="color:rgba(244,248,246,.72);font-size:12px;margin-left:10px">Powering Opportunity Across East Africa</span>
       </div>
       <div style="padding:28px">
@@ -85,7 +85,7 @@ const shell = (heading, body) => `
         ${body}
       </div>
       <div style="padding:16px 28px;border-top:1px solid #E7E4DB;color:#6B7A73;font-size:12px">
-        You are receiving this because you have a Fursad account.
+        You are receiving this because you have a JobAssistAI account.
       </div>
     </div>
   </div>`;
@@ -93,11 +93,11 @@ const shell = (heading, body) => `
 const sendVerificationEmail = async (email, otp) =>
   deliver({
     to: email,
-    subject: 'Your Fursad verification code',
-    text: `Ku soo dhawaada Fursad! Welcome to Fursad.\n\nYour verification code is: ${otp}\n\nIt expires in ${process.env.OTP_EXPIRES_MINUTES || 10} minutes.`,
+    subject: 'Your JobAssistAI verification code',
+    text: `Ku soo dhawaada JobAssistAI! Welcome to JobAssistAI.\n\nYour verification code is: ${otp}\n\nIt expires in ${process.env.OTP_EXPIRES_MINUTES || 10} minutes.`,
     html: shell('Verify your email', `
       <p style="margin:0 0 18px;color:#4A5A52;line-height:1.6">
-        Ku soo dhawaada Fursad! Enter this code to finish creating your account.
+        Ku soo dhawaada JobAssistAI! Enter this code to finish creating your account.
       </p>
       <div style="text-align:center;margin:22px 0">
         <span style="display:inline-block;background:#00C27C;color:#06231A;font-size:30px;font-weight:800;
@@ -111,7 +111,7 @@ const sendVerificationEmail = async (email, otp) =>
 const sendPasswordResetEmail = async (email, name, otp) =>
   deliver({
     to: email,
-    subject: 'Reset your Fursad password',
+    subject: 'Reset your JobAssistAI password',
     text: `Hello ${name},\n\nYour password reset code is: ${otp}\n\nIt expires in ${process.env.OTP_EXPIRES_MINUTES || 10} minutes.\n\nIf you did not ask to reset your password, ignore this email — your password has not changed.`,
     html: shell('Reset your password', `
       <p style="margin:0 0 18px;color:#4A5A52;line-height:1.6">
@@ -131,7 +131,7 @@ const sendStatusUpdateEmail = async (email, candidateName, jobTitle, status, cus
   deliver({
     to: email,
     subject: `Application update — ${jobTitle}`,
-    text: `Hello ${candidateName},\n\nYour application for "${jobTitle}" is now: ${status.toUpperCase()}.\n\n${customMessage}\n\nThe Fursad Team`,
+    text: `Hello ${candidateName},\n\nYour application for "${jobTitle}" is now: ${status.toUpperCase()}.\n\n${customMessage}\n\nThe JobAssistAI Team`,
     html: shell(`Your application is now ${status}`, `
       <p style="margin:0 0 14px;color:#4A5A52;line-height:1.6">Hello ${candidateName},</p>
       <p style="margin:0 0 14px;color:#4A5A52;line-height:1.6">
@@ -200,7 +200,7 @@ const sendJobDecisionEmail = async (email, employerName, jobTitle, decision, not
   return deliver({
     to: email,
     subject: d.subject(jobTitle),
-    text: `Hello ${employerName},\n\n${d.heading}. ${jobTitle}.${plainNote}\n\nThe Fursad Team`,
+    text: `Hello ${employerName},\n\n${d.heading}. ${jobTitle}.${plainNote}\n\nThe JobAssistAI Team`,
     html: shell(d.heading, `
       <p style="margin:0 0 14px;color:#4A5A52;line-height:1.6">Hello ${employerName},</p>
       <p style="margin:0 0 16px;color:#4A5A52;line-height:1.6">${d.lead(jobTitle)}</p>
@@ -219,7 +219,7 @@ const sendJobDecisionEmail = async (email, employerName, jobTitle, decision, not
 const sendContactMessage = async ({ name, email, subject, message }) =>
   deliver({
     to: process.env.MANAGEMENT_EMAIL || EMAIL_FROM,
-    subject: `[Fursad contact] ${subject || 'New enquiry'}`,
+    subject: `[JobAssistAI contact] ${subject || 'New enquiry'}`,
     text: `From: ${name} <${email}>\n\n${message}`,
     html: shell('New contact enquiry', `
       <p style="margin:0 0 8px;color:#4A5A52"><strong>From:</strong> ${name} &lt;${email}&gt;</p>

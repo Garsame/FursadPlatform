@@ -188,7 +188,7 @@ const announcePublishedJob = async (jobId) => {
     await notifyMany(nearby.map(({ seeker, best }) => ({
       recipient: seeker._id,
       type: 'new_employer',
-      title: `${companyName} has started hiring on Fursad`,
+      title: `${companyName} has started hiring on JobAssistAI`,
       body: `Their first vacancy, ${job.title}, scores ${best.score}% against your profile. Worth a look.`,
       link: `/companies/${job.company?._id}`,
       meta: { jobId: job._id, companyId: job.company?._id, matchScore: best.score }

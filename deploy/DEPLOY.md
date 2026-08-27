@@ -1,175 +1,208 @@
 # Fursad — VPS deployment runbook
 
-Target: your own VPS + a Namecheap domain, self-hosted MongoDB, Nginx as the
-front door, PM2 keeping the API alive. No managed platform, no Atlas.
+Your own VPS, a Namecheap domain, MongoDB on the same box, Nginx as the front
+door, PM2 keeping the API alive. No managed platform, no Atlas.
 
-Work through this top to bottom. Replace `yourdomain.com` and `YOUR_VPS_IP`
-everywhere with the real values. Run the numbered commands on the VPS over
-SSH unless marked "on Namecheap" or "on your machine".
+Work through the phases in order. Replace `yourdomain.com` and `YOUR_VPS_IP`
+throughout. Commands run on the VPS over SSH unless marked otherwise.
 
----
-
-## 0. Before you start
-
-- [ ] You can SSH into the VPS as root or a sudo user
-- [ ] You know the VPS's public IP
-- [ ] You have the domain in a Namecheap account
-- [ ] Your Gemini API key and SMTP (Gmail app password) are on hand
-- [ ] The repo is pushed to GitHub (`git push origin main`) — confirm with
-      `git status` and `git log -1` locally first. `.env` is gitignored, so
-      this is safe; nothing secret goes up.
+**Roughly 45–60 minutes**, most of it waiting on DNS and package installs.
 
 ---
 
-## 1. Point the domain at the VPS (on Namecheap)
+## Architecture, in one picture
 
-Namecheap dashboard → Domain List → Manage → Advanced DNS → Add:
+```
+                 browser
+                    │  https://yourdomain.com
+                    ▼
+        ┌───────────────────────┐
+        │        Nginx          │   TLS terminates here (Certbot)
+        │  :80 → :443           │
+        └───┬─────────┬─────────┘
+            │         │
+   /  and static      │  /api/  ·  /socket.io/  ·  /uploads/avatars/
+   files served       ▼
+   from disk    ┌──────────────────┐
+   frontend/    │  Node (PM2)      │  fursad-api, port 5000, 127.0.0.1 only
+   dist/        │  Express+Socket  │
+                └────────┬─────────┘
+                         │
+                ┌────────▼─────────┐        ┌──────────────────┐
+                │ MongoDB 127.0.0.1│        │ backend/uploads/ │
+                │ :27017 (closed)  │        │ CVs + avatars    │
+                └──────────────────┘        └──────────────────┘
+```
+
+Two things follow from this diagram and are worth holding onto:
+
+- **The frontend is static.** Nginx serves `frontend/dist` from disk. Node never
+  serves HTML. So a frontend change requires a *rebuild*, not a restart.
+- **The backend is a long-running process.** Socket.IO chat needs a persistent
+  connection, which is exactly why this is a VPS and not a serverless host.
+
+---
+
+## Phase 0 — Before you start
+
+- [ ] SSH access to the VPS as root or a sudo user
+- [ ] The VPS public IP
+- [ ] The domain in your Namecheap account
+- [ ] Gemini API key on hand
+- [ ] Gmail app password on hand (`myaccount.google.com/apppasswords`)
+- [ ] Everything committed and pushed: `git status` clean, `git push origin main`
+
+`.env` is gitignored and has never been committed — verified. Nothing secret
+goes to GitHub.
+
+---
+
+## Phase 1 — DNS (do this first, it has a wait)
+
+Namecheap → Domain List → **Manage** → **Advanced DNS** → add two records:
 
 | Type | Host | Value | TTL |
 |---|---|---|---|
-| A Record | @ | YOUR_VPS_IP | Automatic |
-| A Record | www | YOUR_VPS_IP | Automatic |
+| A Record | `@` | `YOUR_VPS_IP` | Automatic |
+| A Record | `www` | `YOUR_VPS_IP` | Automatic |
 
-DNS can take anywhere from a few minutes to a couple of hours to propagate.
-Do this step **first** — it's the only thing on this list with a wait built
-in, so get it going before you touch the server.
+Delete any parking/redirect records Namecheap added by default, or they will
+fight your A records.
 
-Check propagation from your own machine while you work through the rest:
-```
+Propagation is minutes to a couple of hours. Start it now, then carry on —
+check from your own machine while you work:
+
+```bash
 nslookup yourdomain.com
 ```
 
+Certbot in Phase 6 **will fail** if DNS has not resolved yet. That is the one
+hard dependency on this wait.
+
 ---
 
-## 2. Base server setup (on the VPS)
+## Phase 2 — Server foundation
 
-Assumes Ubuntu 22.04/24.04. Adjust package manager commands if it's Debian —
-everything else is the same.
+Assumes Ubuntu 22.04 or 24.04.
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 
-# Node.js 20 LTS
+# Node.js 20 LTS (package.json requires >=18)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
+node -v          # expect v20.x
 
-# Nginx, git, build tools
-sudo apt install -y nginx git build-essential
+sudo apt install -y nginx git build-essential ufw curl
 
-# PM2 (keeps the API running, restarts it on crash or reboot)
+# PM2 — keeps the API running and restarts it on crash or reboot
 sudo npm install -g pm2
 
-# Firewall — only SSH, HTTP, HTTPS reach the outside world
+# Firewall: SSH and web only. 27017 stays shut.
 sudo ufw allow OpenSSH
 sudo ufw allow 'Nginx Full'
-sudo ufw enable
+sudo ufw --force enable
+sudo ufw status
 ```
 
-### MongoDB (self-hosted, local only — never exposed to the internet)
+### MongoDB
+
+The repository codename must match your Ubuntu release, so detect it rather
+than pasting a fixed string:
 
 ```bash
-curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
-echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+CODENAME=$(lsb_release -cs)   # jammy (22.04) or noble (24.04)
+echo "Ubuntu codename: $CODENAME"
+
+curl -fsSL https://pgp.mongodb.com/server-8.0.asc \
+  | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu ${CODENAME}/mongodb-org/8.0 multiverse" \
+  | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
 sudo apt update
 sudo apt install -y mongodb-org
 sudo systemctl enable --now mongod
-sudo systemctl status mongod   # should say "active (running)"
+sudo systemctl status mongod --no-pager      # expect: active (running)
 ```
 
-MongoDB's default config already binds to `127.0.0.1` only — leave it that
-way. It never needs to be reachable from outside the VPS since the Node app
-running on the same machine is the only thing that talks to it. Do **not**
-open port 27017 in the firewall.
+Confirm it is bound to loopback only — this is the default and should stay
+that way:
+
+```bash
+grep bindIp /etc/mongod.conf     # expect: bindIp: 127.0.0.1
+```
+
+The Node app is the only thing that talks to Mongo and it runs on this same
+machine. **Never open 27017 in the firewall.**
 
 ---
 
-## 3. Get the code onto the VPS
+## Phase 3 — Get the code onto the server
 
 ```bash
 sudo mkdir -p /var/www
 cd /var/www
 sudo git clone https://github.com/Garsame/FursadPlatform.git fursad
 sudo chown -R $USER:$USER /var/www/fursad
-cd /var/www/fursad
+cd /var/www/fursad/fursad
 ```
 
-(If the repo isn't pushed yet, do that from your desktop first — `git push
-origin main` — then clone. Pushing straight from Windows to the VPS without
-GitHub in between is also possible via `scp`/`rsync` but is more fiddly under
-time pressure; GitHub as the handoff point is simpler.)
+Note the doubled path: the repository root is `fursad/` *inside* the clone
+directory. Everything below runs from `/var/www/fursad/fursad`.
 
 ---
 
-## 4. Backend environment
+## Phase 4 — Backend environment
 
 ```bash
 cd /var/www/fursad/fursad/backend
-cp .env.example .env
+cp ../deploy/env.production.template .env
 ```
 
-Generate two **fresh** secrets, don't reuse anything from your local machine
-or from `.env.example` — freshest and simplest is to generate them directly
-on the VPS:
+Generate the two secrets **on the server**, so they never exist anywhere else:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+echo "JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")"
+echo "ADMIN_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
 ```
 
-Now edit `.env` (`nano .env`) and fill in **every** field — this is the
-checklist that matters most, since a missed var here is the most common way
-a "working locally" app breaks in production:
+Then `nano .env` and fill in every value. The template explains each one.
+The five that must be right or nothing works:
 
-```env
-PORT=5000
-NODE_ENV=production
-CLIENT_URL=https://yourdomain.com
-MONGO_URI=mongodb://localhost:27017/Fursad_Platform
-JWT_EXPIRES_IN=7d
-OTP_EXPIRES_MINUTES=10
+| Variable | Value | If wrong |
+|---|---|---|
+| `CLIENT_URL` | `https://yourdomain.com` | Site loads, every API call is silently discarded by the browser |
+| `JWT_SECRET` | the 96-char value above | Server refuses to start |
+| `ADMIN_SECRET` | the 64-char value above | Server refuses to start |
+| `TRUST_PROXY` | `1` | Rate limits treat all visitors as one client — a few signups lock out everybody |
+| `GEMINI_MODEL` / `GEMINI_EMBED_MODEL` | as in the template | Silently runs older models you never tested |
 
-JWT_SECRET=<the first generated value>
-ADMIN_SECRET=<the second generated value>
-
-GEMINI_API_KEY=<your key>
-GEMINI_MODEL=gemini-3.5-flash
-GEMINI_EMBED_MODEL=gemini-embedding-2
-
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=<your gmail address>
-SMTP_PASSWORD=<gmail app password, spaces are fine, code strips them>
-EMAIL_FROM=<same as SMTP_USER, or a display name>
-MANAGEMENT_EMAIL=<where contact-form enquiries should land>
-
-# Critical: Nginx is one proxy hop in front of the API. Without this, rate
-# limiting collapses every visitor into one shared bucket and a handful of
-# people signing up around the same time can lock everyone out.
-TRUST_PROXY=1
-```
-
-Double-check `GEMINI_MODEL` and `GEMINI_EMBED_MODEL` are set exactly as
-above — the code's built-in fallback values are older models you never
-tested against, and they only kick in if these two lines are missing.
-
-Install backend dependencies:
+Lock the file down — it holds your live keys:
 
 ```bash
-npm install --production=false
-npm test
+chmod 600 .env
 ```
 
-`npm test` should pass all three checks. If it doesn't, stop here and fix
-that before going further — it's the same suite that's already been
-validated locally, so a failure here means something about the VPS
-environment differs (usually a missing env var).
+Install and prove it works before going further:
+
+```bash
+cd /var/www/fursad/fursad
+npm --prefix backend install
+npm --prefix backend test
+```
+
+`npm test` must pass. If it fails here, stop and fix it — the same suite
+passes locally, so a failure means something about this box differs (almost
+always a missing or malformed `.env` value).
 
 ---
 
-## 5. Frontend build
+## Phase 5 — Frontend build
 
-Vite reads `frontend/.env` **at build time**, not runtime — so this file has
-to exist with the real production URLs *before* you run the build.
+**Vite reads `frontend/.env` at BUILD time, not at run time.** The values are
+compiled into the JavaScript bundle. This file must exist with production URLs
+*before* you build, and changing it later does nothing until you rebuild.
 
 ```bash
 cd /var/www/fursad/fursad/frontend
@@ -178,106 +211,227 @@ VITE_API_URL=https://yourdomain.com/api
 VITE_SOCKET_URL=https://yourdomain.com
 EOF
 
-npm install
-npm run build
-```
-
-This produces `frontend/dist/` — the static files Nginx will serve directly.
-If you change the domain later, you must edit `.env` and run `npm run build`
-again; editing it after the build does nothing.
-
----
-
-## 6. Start the API with PM2
-
-From the repo root:
-
-```bash
 cd /var/www/fursad/fursad
-```
-
-Save the `ecosystem.config.js` file below at `/var/www/fursad/fursad/ecosystem.config.js`,
-then:
-
-```bash
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup    # follow the one printed command to enable on-boot start
-pm2 logs fursad-api --lines 50   # confirm it says "MongoDB Connected" and
-                                  # "Server running in production mode"
+npm --prefix frontend install     # devDeps included — vite and tailwind are dev deps
+npm run build                     # → frontend/dist
+ls -la frontend/dist              # expect index.html and assets/
 ```
 
 ---
 
-## 7. Nginx + SSL
-
-Save the `nginx-fursad.conf` file below to
-`/etc/nginx/sites-available/fursad`, editing `yourdomain.com` to your real
-domain, then:
+## Phase 6 — Nginx and TLS
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/fursad /etc/nginx/sites-enabled/fursad
+sudo cp /var/www/fursad/fursad/deploy/nginx-fursad.conf /etc/nginx/sites-available/fursad
+sudo nano /etc/nginx/sites-available/fursad      # replace yourdomain.com (3 places)
+
+sudo ln -sf /etc/nginx/sites-available/fursad /etc/nginx/sites-enabled/fursad
 sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t          # must say "syntax is ok" / "test is successful"
+
+sudo nginx -t                    # must say: syntax is ok / test is successful
 sudo systemctl reload nginx
 ```
 
-Now get a free TLS certificate — Certbot edits the Nginx config in place to
-add the HTTPS server block and redirect, so run this **after** the config
-above is live:
+Visit `http://yourdomain.com` — you should get the site over plain HTTP.
+If you do, TLS:
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 ```
 
-Answer its prompts (email, agree to terms, redirect HTTP→HTTPS: yes).
-Certbot auto-renews via a systemd timer — nothing further to do.
+Answer its prompts: email, agree to terms, and **yes** to redirecting HTTP to
+HTTPS. Certbot rewrites the Nginx config in place to add the TLS server block —
+let it, do not hand-write that part.
+
+Renewal is automatic via a systemd timer. Confirm:
+
+```bash
+sudo systemctl list-timers | grep certbot
+sudo certbot renew --dry-run
+```
 
 ---
 
-## 8. Smoke test — do this before you present, not during
+## Phase 7 — Start the API under PM2
 
-Open `https://yourdomain.com` in an actual browser (not just curl) and walk
-the full loop once, live on the deployed URL:
+```bash
+cd /var/www/fursad/fursad
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup            # prints ONE command — copy it, paste it, run it
+```
 
-- [ ] Public site loads over HTTPS, no mixed-content warnings
-- [ ] Sign up a jobseeker → verification email arrives (check spam) or, if
-      SMTP isn't configured yet, check `pm2 logs fursad-api` for the
-      `[MAIL FALLBACK]` printed code
-- [ ] Sign in, complete the profile to 70%+, upload a CV, confirm it parses
-- [ ] Sign up an employer at `/provider/signup`, complete the company
-      profile, post a job
-- [ ] Sign up an admin at `/admin/signup` (needs `ADMIN_SECRET`), approve the
-      pending job
-- [ ] Back on the jobseeker side, the job appears and can be applied to
-- [ ] Employer sees the applicant, opens the AI shortlist
-- [ ] Send a message from the employer side, confirm the candidate receives
-      it live (this is the real Socket.IO test — if messages don't arrive
-      without a refresh, the `/socket.io/` Nginx proxy block is the first
-      thing to check)
-- [ ] Log in as admin, confirm the analytics charts show real numbers, not
-      zeros-with-an-error
+That last step is what makes the API come back after a reboot. It is easy to
+skip and you only find out during an unplanned restart.
 
-If the Socket.IO step fails: `sudo nginx -t`, confirm the `/socket.io/`
-location block has the `Upgrade`/`Connection` headers exactly as in the
-config below, then `sudo systemctl reload nginx`.
+Check it came up clean:
+
+```bash
+pm2 status
+pm2 logs fursad-api --lines 40
+```
+
+You are looking for three lines:
+
+```
+MongoDB Connected: 127.0.0.1
+Gemini AI initialised — chat: gemini-3.5-flash, embeddings: gemini-embedding-2
+Server running in production mode on port 5000
+Accepting browser requests from: https://yourdomain.com
+```
+
+If instead you see `[FATAL] JWT_SECRET …` the server is doing its job —
+the secret is missing, too short, or still a published example value.
+
+Keep the logs from growing forever:
+
+```bash
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 10M
+pm2 set pm2-logrotate:retain 14
+```
 
 ---
 
-## 9. What to say if a judge asks
+## Phase 8 — Smoke test on the live domain
 
-These are already-known, already-documented gaps (see the project's own
-architecture doc, §11) — better to name them yourself than have them found:
+Do this **before** you tell anyone the URL. Open a real browser, not curl.
 
-- No pagination yet — long lists load in full, fine at this scale
-- No admin view of company profiles / employer verification screen
-- No interview scheduling with a real date, no saved jobs, no employer
-  multi-seat accounts
-- Uploaded CVs/avatars live on this VPS's disk — durable here (unlike a
-  typical PaaS free tier), but not yet backed up anywhere else
+```bash
+# API is alive behind the proxy
+curl -fsS http://127.0.0.1:5000/          # {"message":"Welcome to the Fursad Platform API"}
+curl -fsS https://yourdomain.com/api/jobs # {"success":true,...}
+```
 
-And one honest one to have ready: rate limits are per-IP and generous for a
-single visitor, but if several people test signup from the same venue WiFi
-in quick succession, they may see "too many attempts" — that's the security
-hardening working as designed, not a bug.
+Then walk the whole loop in the browser:
+
+- [ ] Site loads over HTTPS, padlock present, no mixed-content warnings
+- [ ] Register a candidate → the verification email arrives (check spam). If
+      SMTP is not set, read the code from `pm2 logs fursad-api` — it prints
+      under `[MAIL FALLBACK]`
+- [ ] Sign in, complete the profile past 70%, upload a CV, confirm it parses
+- [ ] Register an employer at `/provider/signup`, complete the company profile,
+      post a job
+- [ ] Register an admin at `/admin/signup` using `ADMIN_SECRET`, approve the job
+- [ ] Candidate side: the job appears with a match score and breakdown
+- [ ] Apply; employer sees the applicant ranked with an AI summary
+- [ ] **Send a message from the employer — it must appear on the candidate side
+      without a refresh.** This is the real Socket.IO test
+- [ ] Admin analytics show real numbers, and the growth chart's last point
+      equals the total user count
+
+Or run the whole thing automatically, which is faster and checks more:
+
+```bash
+cd /var/www/fursad/fursad/backend
+node scripts/walkthrough.js
+```
+
+33 checks against the live database, and it leaves working demo data behind.
+Add `--clean` if you would rather it tidy up after itself.
+
+---
+
+## Phase 9 — Backups
+
+The uploads directory holds real people's CVs. Losing it is not recoverable.
+
+```bash
+sudo mkdir -p /var/backups/fursad
+sudo chown $USER:$USER /var/backups/fursad
+chmod +x /var/www/fursad/fursad/deploy/backup.sh
+
+# nightly at 02:30
+( crontab -l 2>/dev/null; echo "30 2 * * * /var/www/fursad/fursad/deploy/backup.sh >> /var/log/fursad-backup.log 2>&1" ) | crontab -
+crontab -l
+```
+
+Run it once by hand now to prove it works:
+
+```bash
+/var/www/fursad/fursad/deploy/backup.sh
+ls -la /var/backups/fursad
+```
+
+---
+
+## Day-to-day: shipping a change
+
+This is the loop you will use from now on. **One command:**
+
+```bash
+cd /var/www/fursad/fursad && ./deploy/update.sh
+```
+
+It pulls, installs, rebuilds the frontend, restarts the API, and health-checks
+the result. What it does and why:
+
+| Step | Why |
+|---|---|
+| `git pull` | brings the new code |
+| `npm install` both sides | a new dependency would otherwise crash at boot |
+| `npm run build` | the frontend is static — **a restart alone changes nothing** |
+| `pm2 restart --update-env` | picks up `.env` edits, which a plain restart does not |
+| health check | fails loudly rather than leaving you a broken site |
+
+### The three cases, in plain terms
+
+**Backend code changed** — `pm2 restart fursad-api` is enough.
+
+**Frontend code changed** — you must `npm run build`. Restarting Node does
+nothing, because Node does not serve the frontend.
+
+**`.env` changed** — `pm2 restart fursad-api --update-env`. Without
+`--update-env` PM2 reuses the old environment and your change appears to have
+been ignored. And if you changed `VITE_*`, that is a frontend rebuild, not a
+restart.
+
+### Useful commands
+
+```bash
+pm2 status                      # is it up
+pm2 logs fursad-api             # live logs
+pm2 logs fursad-api --err       # errors only
+pm2 restart fursad-api          # restart
+pm2 monit                       # live CPU / memory
+
+sudo nginx -t                   # validate config before reloading
+sudo systemctl reload nginx     # apply Nginx changes with no downtime
+sudo systemctl status mongod    # database health
+
+df -h                           # disk — uploads grow
+free -h                         # memory
+```
+
+---
+
+## When something is wrong
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Site loads, nothing works, no visible error | `CLIENT_URL` ≠ the address in the URL bar | Fix `.env`, `pm2 restart fursad-api --update-env` |
+| API calls 404 | Nginx `/api/` block missing or misspelled | `sudo nginx -t`, check the location block |
+| Chat needs a refresh to show messages | `/socket.io/` block missing its Upgrade headers | Compare against `deploy/nginx-fursad.conf`, reload |
+| `[FATAL] JWT_SECRET …` in the log | Secret missing, under 32 chars, or a published value | Regenerate, put it in `.env`, restart |
+| "Too many attempts" for everyone at once | `TRUST_PROXY` not set | Set `TRUST_PROXY=1`, restart with `--update-env` |
+| Frontend changes not showing | Forgot the rebuild | `npm run build` |
+| CVs upload but never parse | Gemini key wrong, or quota | `pm2 logs fursad-api` — the AI errors are logged plainly |
+| Emails not arriving | SMTP wrong | Log shows `[EMAIL] SMTP login failed`; codes still print under `[MAIL FALLBACK]` |
+| 502 Bad Gateway | Node is down | `pm2 status`, `pm2 logs fursad-api`, `pm2 restart fursad-api` |
+| Disk full | uploads or PM2 logs | `df -h`, then `pm2 flush` and check `backend/uploads/` |
+
+---
+
+## What is deliberately not in this setup
+
+Say these yourself before someone asks:
+
+- **No CDN.** All traffic hits this one box.
+- **No horizontal scaling.** One Node process. Socket.IO would need a Redis
+  adapter to run more than one.
+- **Uploads live on this disk only**, backed up nightly to the same machine.
+  Off-site copies are the obvious next step.
+- **No staging environment.** `update.sh` deploys straight to production; the
+  frontend is unavailable for the few seconds of the build.
+- **Pagination is not implemented.** Fine at current size, not at scale.

@@ -100,7 +100,7 @@ const ProfileBuilder = () => {
         </div>
         <p className="text-text-secondary mt-2 max-w-prose">
           A few questions, one at a time. Your answers go straight into your match scores —
-          and at the end Fursad works out the single job specification that fits you best.
+          and at the end JobAssistAI works out the single job specification that fits you best.
         </p>
 
         {state && !state.aiLive && (
