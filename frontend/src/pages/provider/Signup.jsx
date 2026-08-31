@@ -76,7 +76,7 @@ const Signup = () => {
 
           <Input
             label={t('auth.company_name')}
-            placeholder="East Africa Telecom"
+            placeholder="Horn Digital Systems"
             value={formData.companyName}
             onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
             required

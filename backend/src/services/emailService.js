@@ -78,7 +78,7 @@ const shell = (heading, body) => `
     <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #E7E4DB;border-radius:14px;overflow:hidden">
       <div style="background:#0B5C43;padding:20px 28px">
         <span style="color:#00C27C;font-size:22px;font-weight:800;letter-spacing:-.5px">JobAssistAI</span>
-        <span style="color:rgba(244,248,246,.72);font-size:12px;margin-left:10px">Powering Opportunity Across East Africa</span>
+        <span style="color:rgba(244,248,246,.72);font-size:12px;margin-left:10px">Powering Opportunity Across Somalia</span>
       </div>
       <div style="padding:28px">
         <h1 style="margin:0 0 14px;font-size:20px;color:#0F1F1A">${heading}</h1>

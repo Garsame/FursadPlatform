@@ -47,7 +47,7 @@ export const PILLARS = [
 ];
 
 export const AT_A_GLANCE = [
-  ['Purpose',   'AI-assisted job matching and hiring for Somalia and East Africa'],
+  ['Purpose',   'AI-assisted job matching and hiring for Somalia'],
   ['Languages', 'Somali and English, switchable at any point'],
   ['Portals',   'Three, fully separate: candidate, employer, moderator'],
   ['Screens',   '35 pages across 38 routes'],

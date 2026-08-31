@@ -12,15 +12,25 @@ export const JobseekerAuthProvider = ({ children }) => {
   const loadUser = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/auth/me');
+      // Send this portal's own token rather than letting the interceptor
+      // infer one from the URL — on a public route it would infer wrong.
+      const res = await api.get('/auth/me', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('fursad_jobseeker_token')}` },
+      });
       if (res.data && res.data.success) {
         setUser(res.data.data);
       } else {
         logout();
       }
     } catch (err) {
-      console.error('Failed to load jobseeker:', err.message);
-      logout();
+      // A 401 means the token is genuinely finished. Anything else —
+      // a dropped connection, the API restarting — must not sign the
+      // user out; it is a transient failure, not an invalid session.
+      if (err.response?.status === 401) {
+        logout();
+      } else {
+        console.error('Could not verify the jobseeker session:', err.message);
+      }
     } finally {
       setLoading(false);
     }

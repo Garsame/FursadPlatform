@@ -130,7 +130,7 @@ const Hero = ({ stats }) => (
         </h1>
 
         <p className="text-lg text-text-secondary mt-6 max-w-prose leading-relaxed">
-          JobAssistAI is an AI-assisted hiring platform built for Somalia and East Africa. It reads CVs,
+          JobAssistAI is an AI-assisted hiring platform built for Somalia. It reads CVs,
           understands skills by meaning rather than spelling, and scores every candidate against
           every vacancy with arithmetic anyone can check. Three separate portals — candidate,
           employer and moderator — run one hiring process from first upload to signed offer.

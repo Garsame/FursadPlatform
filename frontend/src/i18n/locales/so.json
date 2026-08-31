@@ -75,7 +75,7 @@
     "hero_title_a": "Fursada saxda ah",
     "hero_title_em": "karti",
     "hero_title_b": "kasta",
-    "hero_sub": "JobAssistAI wuxuu xirfadahaaga ku xiraa shaqooyin dhab ah oo ka jira Soomaaliya iyo Bariga Afrika, wuxuu qiimeeyaa sida aad ugu habboon tahay ka hor inta aanad codsan, wuxuuna kuu sheegayaa sababta.",
+    "hero_sub": "JobAssistAI wuxuu xirfadahaaga ku xiraa shaqooyin dhab ah oo ka jira Soomaaliya, wuxuu qiimeeyaa sida aad ugu habboon tahay ka hor inta aanad codsan, wuxuuna kuu sheegayaa sababta.",
     "search_role": "Magaca shaqada, xirfad ama shirkad",
     "search_city": "Magaalada",
     "search_btn": "Raadi",
@@ -230,7 +230,7 @@
     "employer_prompt": "Ma shaqaalaysiinaysaa?",
     "employer_link": "Aad albaabka shaqo-bixiyaha",
     "quote": "Qof kastaa wuxuu mudan yahay fursad caadil ah oo ku habboon kartidiisa.",
-    "quote_sub": "Fursad u siinaya Bariga Afrika",
+    "quote_sub": "Fursad u siinaya Soomaaliya",
     "admin_login_title": "Gelitaanka Albaabka Admin-ka",
     "admin_signup_title": "Diiwangelinta Albaabka Admin-ka",
     "admin_secret": "Furaha Sirta ee Admin-ka",
@@ -267,7 +267,7 @@
     "hide_password": "Qari furaha sirta"
   },
   "footer": {
-    "blurb": "JobAssistAI wuxuu isku xiraa kartida Soomaaliya iyo Bariga Afrika iyo shaqo-bixiyeyaal shaqaalaysiinaya, isagoo isticmaalaya isbarbardhig AI ah si codsi kastaa u tiro galo.",
+    "blurb": "JobAssistAI wuxuu isku xiraa kartida Soomaaliya iyo shaqo-bixiyeyaal shaqaalaysiinaya, isagoo isticmaalaya isbarbardhig AI ah si codsi kastaa u tiro galo.",
     "candidates": "Shaqo-doonka",
     "employers": "Shaqo-bixiyeyaasha",
     "company": "Shirkadda",
@@ -275,7 +275,7 @@
     "employer_signin": "Gelitaanka shaqo-bixiyaha",
     "post_job": "Soo geli shaqo",
     "rights": "Dhammaan xuquuqda way dhowran yihiin.",
-    "made_in": "Waxaa lagu dhisay Muqdisho ee Bariga Afrika"
+    "made_in": "Waxaa lagu dhisay Muqdisho, waxaana loogu talagalay Soomaaliya"
   },
   "dashboard": {
     "welcome": "Ku soo dhawaada,",

@@ -75,7 +75,7 @@
     "hero_title_a": "The right",
     "hero_title_em": "opportunity",
     "hero_title_b": "for every talent",
-    "hero_sub": "JobAssistAI matches your skills to real vacancies across Somalia and East Africa, scores how well you fit before you apply, and tells you exactly why.",
+    "hero_sub": "JobAssistAI matches your skills to real vacancies across Somalia, scores how well you fit before you apply, and tells you exactly why.",
     "search_role": "Job title, skill or company",
     "search_city": "City",
     "search_btn": "Search",
@@ -230,7 +230,7 @@
     "employer_prompt": "Hiring instead?",
     "employer_link": "Go to the employer portal",
     "quote": "Everyone deserves a fair shot at the right opportunity.",
-    "quote_sub": "Powering opportunity across East Africa",
+    "quote_sub": "Powering opportunity across Somalia",
     "admin_login_title": "Admin Portal Sign In",
     "admin_signup_title": "Admin Portal Registration",
     "admin_secret": "Admin Secret Key",
@@ -267,7 +267,7 @@
     "hide_password": "Hide password"
   },
   "footer": {
-    "blurb": "JobAssistAI connects talent across Somalia and East Africa with employers who are hiring, using AI matching to make every application count.",
+    "blurb": "JobAssistAI connects talent across Somalia with employers who are hiring, using AI matching to make every application count.",
     "candidates": "Job seekers",
     "employers": "Employers",
     "company": "Company",
@@ -275,7 +275,7 @@
     "employer_signin": "Employer sign in",
     "post_job": "Post a job",
     "rights": "All rights reserved.",
-    "made_in": "Built in Mogadishu for East Africa"
+    "made_in": "Built in Mogadishu, for Somalia"
   },
   "dashboard": {
     "welcome": "Welcome back,",

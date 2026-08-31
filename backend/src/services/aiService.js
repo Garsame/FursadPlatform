@@ -107,7 +107,7 @@ const parseResume = async (rawText, language = 'en') => {
     experience: [
       {
         title: 'Full Stack Developer',
-        company: 'East Africa Tech Solutions',
+        company: 'Horn Digital Systems',
         startDate: new Date('2023-08-01'),
         endDate: null,
         description: 'Developing core features for the business portal and client management system.'
@@ -575,8 +575,8 @@ const generateCompanyProfile = async (facts) => {
 
     const prompt = `
       You are writing the public profile of an employer on JobAssistAI, a job
-      platform for Somalia and East Africa. A jobseeker reads this to decide
-      whether to trust this company with their CV.
+      platform serving employers and jobseekers across Somalia. A jobseeker
+      reads this to decide whether to trust this company with their CV.
 
       RULES
       - Ground every sentence in the facts below. Do not invent awards, client

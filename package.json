@@ -2,7 +2,7 @@
   "name": "fursad-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "AI-powered job matching and hiring platform for Somalia and East Africa",
+  "description": "AI-powered job matching and hiring platform for Somalia",
   "scripts": {
     "dev": "concurrently -n api,web -c green,cyan \"npm:dev:backend\" \"npm:dev:frontend\"",
     "dev:backend": "npm --prefix backend run dev",
