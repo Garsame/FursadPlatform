@@ -124,7 +124,7 @@ const SignUp = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <Input type="tel" name="phone" icon={Phone} label={t('auth.phone')}
-                  placeholder="+252 61 234567" value={f.phone} onChange={set('phone')} required />
+                  placeholder="+252 61 000 0000" value={f.phone} onChange={set('phone')} required />
 
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="gender" className="text-sm font-semibold text-text-primary">Gender</label>

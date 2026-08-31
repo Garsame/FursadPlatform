@@ -115,7 +115,7 @@ const Hero = ({ stats }) => (
     <div className="absolute -top-40 -right-32 -z-10 w-[38rem] h-[38rem] rounded-full bg-accent-ochreMuted blur-3xl opacity-70" />
 
     <div className="max-w-7xl mx-auto px-6 pt-lg pb-md">
-      <div className="max-w-3xl animate-fade-up">
+      <div className="max-w-3xl mx-auto text-center animate-fade-up">
         <span className="eyebrow">
           <Sparkles size={14} /> About JobAssistAI
         </span>
@@ -129,20 +129,20 @@ const Hero = ({ stats }) => (
           .
         </h1>
 
-        <p className="text-lg text-text-secondary mt-6 max-w-prose leading-relaxed">
+        <p className="text-lg text-text-secondary mt-6 max-w-prose mx-auto leading-relaxed">
           JobAssistAI is an AI-assisted hiring platform built for Somalia. It reads CVs,
           understands skills by meaning rather than spelling, and scores every candidate against
           every vacancy with arithmetic anyone can check. Three separate portals — candidate,
           employer and moderator — run one hiring process from first upload to signed offer.
         </p>
 
-        <p className="text-base text-text-muted mt-4 max-w-prose leading-relaxed">
+        <p className="text-base text-text-muted mt-4 max-w-prose mx-auto leading-relaxed">
           This page is the long version. It covers how the platform works, exactly where AI is used
           and where it deliberately is not, what each side gets out of it, and the rules that govern
           everyone.
         </p>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-8">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 mt-8">
           {/* An anchor, not a Button — this scrolls, it does not act. */}
           <a
             href="#how"
@@ -168,7 +168,7 @@ const Hero = ({ stats }) => (
         <Stat value={stats?.cities} label="Cities covered" hint="Distinct locations advertised" />
         <Stat value={stats?.skills} label="Skills in demand" hint="Distinct skills across live roles" />
       </div>
-      <p className="text-xs text-text-muted mt-4">
+      <p className="text-xs text-text-muted mt-4 text-center">
         Counted live from the public listings each time this page loads.
       </p>
     </div>
