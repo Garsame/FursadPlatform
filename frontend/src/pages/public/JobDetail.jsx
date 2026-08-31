@@ -12,6 +12,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import CompanyLogo from '../../components/CompanyLogo';
 import JobCard, { formatSalary, formatPosted } from '../../components/JobCard';
+import RichText from '../../components/ui/RichText';
 
 const JobDetail = () => {
   const { id } = useParams();
@@ -175,12 +176,12 @@ const JobDetail = () => {
                 </div>
               </div>
 
-              {/* Description — the API stores plain text with newlines. */}
+              {/* Description — the AI writes light Markdown, so render it. */}
               <div className="mt-8 pt-8 border-t border-border-subtle">
                 <h2 className="font-bold text-lg text-text-primary mb-4">{t('jobdetail.about_role')}</h2>
-                <div className="text-[15px] text-text-secondary leading-[1.75] whitespace-pre-line max-w-prose">
+                <RichText className="text-[15px] text-text-secondary leading-[1.75] max-w-prose">
                   {job.description}
-                </div>
+                </RichText>
               </div>
 
               {job.skillsRequired?.length > 0 && (

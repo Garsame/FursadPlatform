@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  MapPin, Globe, Users, CalendarDays, CheckCircle2, ArrowLeft, Building2, Heart, AlertCircle,
+  MapPin, Globe, Users, CalendarDays, CheckCircle2, ArrowLeft, Building2, Heart, AlertCircle, Compass,
 } from 'lucide-react';
 import api from '../../services/api';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import JobCard from '../../components/JobCard';
 import CompanyLogo from '../../components/CompanyLogo';
+import RichText from '../../components/ui/RichText';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 
@@ -120,9 +121,9 @@ const CompanyProfile = () => {
                 <p className="text-[15px] text-text-secondary leading-[1.75] max-w-prose">{c.description}</p>
               )}
               {c.about && (
-                <div className="text-[15px] text-text-secondary leading-[1.75] whitespace-pre-line max-w-prose mt-4">
+                <RichText className="text-[15px] text-text-secondary leading-[1.75] max-w-prose mt-4">
                   {c.about}
-                </div>
+                </RichText>
               )}
             </div>
           )}
@@ -161,10 +162,23 @@ const CompanyProfile = () => {
 
           {c.values?.length > 0 && (
             <div className="bg-bg-surface border border-border-subtle rounded-card shadow-card p-5">
-              <h3 className="font-bold text-text-primary mb-3">Values</h3>
-              <div className="flex flex-wrap gap-2">
-                {c.values.map((v) => <Badge key={v} variant="brand">{v}</Badge>)}
-              </div>
+              <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
+                <Compass size={16} className="text-brand-deep" /> Values
+              </h3>
+              {/* Employers write these as full sentences, not one-word tags.
+                  Pills forced them onto one line and they ran past the card,
+                  so each value is now its own wrapping statement. */}
+              <ul className="flex flex-col gap-2.5">
+                {c.values.map((v) => (
+                  <li
+                    key={v}
+                    className="text-sm text-brand-deep leading-snug bg-brand-muted
+                      border-l-[3px] border-brand-green rounded-r-lg py-2 pl-3 pr-3"
+                  >
+                    {v}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </aside>

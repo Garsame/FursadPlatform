@@ -5,6 +5,7 @@ import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import RichText from '../../components/ui/RichText';
 import { ClipboardCopy, Brain, ArrowRight, ArrowLeft, Send, Sparkles, Building, MapPin } from 'lucide-react';
 
 const PostJob = () => {
@@ -327,9 +328,10 @@ const PostJob = () => {
 
             <div>
               <span className="text-xs font-bold text-text-primary block mb-1">Description:</span>
-              <p className="text-xs text-text-secondary whitespace-pre-line leading-relaxed bg-bg-surface p-3 rounded border border-border-subtle font-mono max-h-[150px] overflow-y-auto">
+              <RichText className="text-[13px] text-text-secondary leading-relaxed bg-bg-surface p-4 rounded-lg
+                border border-border-subtle max-h-[240px] overflow-y-auto">
                 {description}
-              </p>
+              </RichText>
             </div>
           </div>
 
